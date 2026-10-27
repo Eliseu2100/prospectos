@@ -98,6 +98,9 @@ Leia isto com atenção antes de rodar qualquer coisa:
 | 📊 **CRM visual + Kanban** | Funil de status com histórico, drag-and-drop, tags, observações e follow-up com cadência crescente (+3/+5/+7 dias) |
 | 📈 **Analytics** | Funil de conversão e desempenho por nicho, para os dois canais separados e combinados |
 | 🧰 **Produtividade** | Filtros (inclusive por situação do site), histórico de buscas, busca global (Ctrl+K), exportação CSV, ações em lote, tema claro/escuro |
+| 📤 **Envio direto pelo WhatsApp** | Com a [Evolution API](https://github.com/EvolutionAPI/evolution-api) rodando local (Docker), envia a mensagem do lead em um clique, grava no histórico da conversa, marca o lead como contatado e respeita um **limite diário** pra proteger seu número |
+| ✈️ **Telegram** | Bot próprio (via @BotFather) que manda pra você o **resumo do dia**: follow-ups pendentes, leads novos e envios |
+| 🤖 **Gemini Flash ou Pro** | Escolha em Configurações qual modelo do Gemini gera as mensagens e analisa as conversas |
 | 🔐 **Segurança** | Chaves de API guardadas no cofre de credenciais do sistema (Windows/DPAPI), nunca em texto puro |
 
 ---
@@ -189,6 +192,22 @@ O que acontece ao rodar isso:
 cd ../frontend
 npm install
 ```
+
+### 5.1 (Opcional) Envio direto pelo WhatsApp e avisos no Telegram
+
+**WhatsApp:** instale o [Docker Desktop](https://www.docker.com/products/docker-desktop/) e suba a Evolution API:
+
+```powershell
+cd evolution
+copy .env.example .env    # troque AUTHENTICATION_API_KEY por uma senha longa
+docker compose up -d
+```
+
+Depois, em **Configurações → Envio de mensagens → WhatsApp**: URL `http://localhost:8080`, a mesma chave do `.env`, salve e clique em **Conectar (QR code)**. No celular: WhatsApp → Aparelhos conectados → Conectar aparelho. A partir daí, cada lead ganha o botão **Enviar pelo WhatsApp**.
+
+> ⚠️ Mandar mensagem para quem não te conhece pode levar o WhatsApp a bloquear o número. Use um número só para prospecção, mantenha o limite diário baixo (padrão: 30) e personalize as mensagens.
+
+**Telegram:** fale com o [@BotFather](https://t.me/BotFather), crie um bot com `/newbot`, cole o token em Configurações, mande `/start` pro seu bot e clique em **Detectar chat**.
 
 ### 6. Rode tudo
 

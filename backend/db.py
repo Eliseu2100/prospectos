@@ -35,8 +35,17 @@ CHAVES_CONFIG_VALIDAS = {
 # Chaves que são segredo de verdade: ficam no cofre de credenciais do sistema
 # (Windows Credential Manager, via keyring/DPAPI), nunca em plaintext no
 # leads.db - o banco entra nos backups automáticos, o cofre não.
-CHAVES_SECRETAS = set(CHAVES_CONFIG_VALIDAS)
+CHAVES_SECRETAS = set(CHAVES_CONFIG_VALIDAS) | {"evolution_api_key", "telegram_bot_token"}
 _SERVICO_KEYRING = "ProspectOS"
+
+# Configs de envio (WhatsApp/Telegram) que também podem vir do .env
+CHAVES_ENV_ENVIO = {
+    "evolution_url": "EVOLUTION_URL",
+    "evolution_api_key": "EVOLUTION_API_KEY",
+    "evolution_instancia": "EVOLUTION_INSTANCE",
+    "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
+    "telegram_chat_id": "TELEGRAM_CHAT_ID",
+}
 
 
 def _keyring_obter(chave):
@@ -100,7 +109,7 @@ def obter_config(chave, default=None):
     if linha and linha["valor"]:
         return linha["valor"]
 
-    chave_env = CHAVES_CONFIG_VALIDAS.get(chave, chave)
+    chave_env = CHAVES_CONFIG_VALIDAS.get(chave) or CHAVES_ENV_ENVIO.get(chave, chave)
     return os.environ.get(chave_env, default)
 
 

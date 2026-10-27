@@ -49,6 +49,15 @@ NOMES_AMIGAVEIS_PROVEDOR = {
     "nvidia": "NVIDIA Build",
 }
 
+# Modelos do Gemini que o usuário pode escolher em Configurações. Flash é o
+# padrão (cota gratuita maior); Pro escreve melhor mas tem cota gratuita menor.
+MODELOS_GEMINI = {
+    "gemini-flash-latest": "Gemini Flash (rápido, cota gratuita maior)",
+    "gemini-pro-latest": "Gemini Pro (mais inteligente, cota menor)",
+    "gemini-flash-lite-latest": "Gemini Flash-Lite (mais leve)",
+}
+MODELO_GEMINI_PADRAO = "gemini-flash-latest"
+
 # Copy quer criatividade; classificação quer consistência.
 TEMPERATURA_COPY = 0.9
 TEMPERATURA_CLASSIFICACAO = 0.2
@@ -116,6 +125,12 @@ def traduzir_erro_ia(erro):
 # Adapters dos provedores - todos recebem (system, user, temperatura, formato_json)
 # ---------------------------------------------------------------------------
 
+def modelo_gemini():
+    """Modelo escolhido em Configurações; qualquer valor fora da lista volta pro padrão."""
+    modelo = db.obter_config("gemini_modelo")
+    return modelo if modelo in MODELOS_GEMINI else MODELO_GEMINI_PADRAO
+
+
 def gemini_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False):
     from google import genai
 
@@ -126,7 +141,7 @@ def gemini_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_js
     if formato_json:
         config["response_mime_type"] = "application/json"
     resposta = cliente.models.generate_content(
-        model="gemini-flash-latest", contents=user, config=config
+        model=modelo_gemini(), contents=user, config=config
     )
     return resposta.text.strip()
 

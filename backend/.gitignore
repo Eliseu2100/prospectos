@@ -21,3 +21,6 @@ node/
 # artefatos de build do PyInstaller
 build/
 dist/
+
+# ambiente virtual do Python
+.venv/

@@ -1,0 +1,40 @@
+# Evolution API: conecta o seu WhatsApp por QR code e expõe uma API HTTP de
+# envio que o ProspectOS usa. Requer Docker Desktop.
+#
+#   copy .env.example .env      (e troque a chave)
+#   docker compose up -d
+#
+# Depois, em ProspectOS → Configurações → WhatsApp: URL http://localhost:8080,
+# a mesma chave do .env e clique em "Conectar" pra escanear o QR code.
+services:
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file: .env
+    environment:
+      SERVER_URL: http://localhost:8080
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:evolution@postgres:5432/evolution?schema=public
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      LANGUAGE: pt-BR
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: evolution
+      POSTGRES_DB: evolution
+    volumes:
+      - evolution_postgres:/var/lib/postgresql/data
+
+volumes:
+  evolution_instances:
+  evolution_postgres:

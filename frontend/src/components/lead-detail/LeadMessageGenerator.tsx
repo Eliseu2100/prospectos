@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react"
-import { Copy, MessageCircle, MessageCircleReply, Sparkles } from "lucide-react"
+import { Copy, MessageCircle, MessageCircleReply, Send, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { TemplateSelector } from "@/components/shared/TemplateSelector"
 import { useClipboard } from "@/hooks/useClipboard"
+import { useEnviarWhatsapp, useEstadoWhatsapp } from "@/hooks/useEnvio"
 import { ajustarSaudacao } from "@/lib/saudacao"
 import { formatarTempoRelativo } from "@/lib/formatters"
 import { linkWhatsappComMensagem } from "@/services/tarefasService"
@@ -49,6 +50,12 @@ export function LeadMessageGenerator({
     copiado: numeroCopiado,
     copiar: copiarNumero,
   } = useClipboard()
+
+  // envio direto só aparece com a Evolution API conectada; senão fica o
+  // "Abrir WhatsApp" de sempre
+  const { data: estadoWhatsapp } = useEstadoWhatsapp()
+  const enviarWhatsapp = useEnviarWhatsapp("maps", lead.place_id)
+  const podeEnviarDireto = estadoWhatsapp?.estado === "open" && Boolean(lead.telefone)
 
   const handleGerar = (tipo: "contato" | "followup") => {
     const jaTinhaMensagem = mensagem.trim().length > 0
@@ -108,10 +115,26 @@ export function LeadMessageGenerator({
         >
           {numeroCopiado ? "Copiado!" : "Copiar número"}
         </Button>
-        {lead.whatsapp_link && (
+        {podeEnviarDireto && (
           <Button
             size="sm"
             className="bg-success text-white hover:bg-success/90"
+            disabled={!mensagem.trim() || enviarWhatsapp.isPending}
+            onClick={() => enviarWhatsapp.mutate(ajustarSaudacao(mensagem))}
+          >
+            <Send className="size-4" />
+            {enviarWhatsapp.isPending ? "Enviando..." : "Enviar pelo WhatsApp"}
+          </Button>
+        )}
+        {lead.whatsapp_link && (
+          <Button
+            variant={podeEnviarDireto ? "outline" : "default"}
+            size="sm"
+            className={
+              podeEnviarDireto
+                ? "border-success/40 text-success hover:bg-success/10"
+                : "bg-success text-white hover:bg-success/90"
+            }
             onClick={() => {
               // avisa de quem é a conversa antes da janela abrir, pro cockpit
               // vincular as mensagens capturadas ao lead certo

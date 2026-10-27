@@ -11,6 +11,7 @@ O código está dividido por responsabilidade:
     rotas_instagram.py  - CRM dos leads do Instagram + disparo da análise
     rotas_analytics.py  - métricas, funis, meta semanal, follow-ups do dia
     rotas_config.py     - chaves de IA, proxies, templates de mensagem
+    rotas_envio.py      - envio direto por WhatsApp (Evolution API) e Telegram
     ia.py               - provedores de IA e fallback unificado
     jobs.py             - jobs de background (scraper/análise) + persistência
     db.py               - conexão, configurações e backup do banco
@@ -54,6 +55,7 @@ import processar
 import rotas_analytics
 import rotas_config
 import rotas_conversa
+import rotas_envio
 import rotas_instagram
 import rotas_leads
 
@@ -63,6 +65,7 @@ app.register_blueprint(rotas_instagram.bp)
 app.register_blueprint(rotas_analytics.bp)
 app.register_blueprint(rotas_config.bp)
 app.register_blueprint(rotas_conversa.bp)
+app.register_blueprint(rotas_envio.bp)
 
 
 @app.errorhandler(Exception)

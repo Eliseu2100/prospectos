@@ -3,6 +3,9 @@ import { Link } from "react-router-dom"
 import { Header } from "@/components/layout/Header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FonteMapsCard } from "@/components/configuracoes/FonteMapsCard"
+import { GeminiModeloCard } from "@/components/configuracoes/GeminiModeloCard"
+import { TelegramCard } from "@/components/configuracoes/TelegramCard"
+import { WhatsappEnvioCard } from "@/components/configuracoes/WhatsappEnvioCard"
 import { InstagramContaCard } from "@/components/configuracoes/InstagramContaCard"
 import { PerfilVendedorCard } from "@/components/configuracoes/PerfilVendedorCard"
 import { ProvedorApiCard } from "@/components/configuracoes/ProvedorApiCard"
@@ -70,6 +73,7 @@ export function ConfiguracoesPage() {
                 config={data[provedor]}
               />
             ))}
+            {data.gemini.configurada && <GeminiModeloCard />}
             <p className="text-xs text-muted-foreground">
               A chave do PageSpeed é opcional: adiciona a nota oficial de
               desempenho do Google no diagnóstico em PDF (funciona sem chave
@@ -77,6 +81,19 @@ export function ConfiguracoesPage() {
             </p>
           </div>
         )}
+
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">
+            Envio de mensagens
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Conecte seu WhatsApp para enviar a abordagem direto do lead, e o
+            Telegram para receber avisos.
+          </p>
+        </div>
+
+        <WhatsappEnvioCard />
+        <TelegramCard />
 
         <div>
           <h2 className="text-xl font-semibold tracking-tight">

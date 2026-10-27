@@ -5,6 +5,10 @@ set PASTA_BACKEND=%~dp0backend
 set PASTA_FRONTEND=%~dp0frontend
 set PASTA_LOGS=%~dp0logs
 
+rem usa o ambiente virtual do backend (.venv) se ele existir
+set PYTHON_BACKEND=py
+if exist "%PASTA_BACKEND%\.venv\Scripts\python.exe" set PYTHON_BACKEND=%PASTA_BACKEND%\.venv\Scripts\python.exe
+
 if not exist "%PASTA_LOGS%" mkdir "%PASTA_LOGS%"
 if not exist "%PASTA_LOGS%\vazio.txt" type nul > "%PASTA_LOGS%\vazio.txt"
 
@@ -15,7 +19,7 @@ if %errorlevel%==0 (
     echo Backend ja estava rodando.
 ) else (
     echo Iniciando o backend...
-    powershell -NoProfile -Command "Start-Process py -ArgumentList 'app.py' -WorkingDirectory '%PASTA_BACKEND%' -WindowStyle Hidden -RedirectStandardOutput '%PASTA_LOGS%\backend-saida.log' -RedirectStandardError '%PASTA_LOGS%\backend-erro.log' -RedirectStandardInput '%PASTA_LOGS%\vazio.txt'"
+    powershell -NoProfile -Command "Start-Process '%PYTHON_BACKEND%' -ArgumentList 'app.py' -WorkingDirectory '%PASTA_BACKEND%' -WindowStyle Hidden -RedirectStandardOutput '%PASTA_LOGS%\backend-saida.log' -RedirectStandardError '%PASTA_LOGS%\backend-erro.log' -RedirectStandardInput '%PASTA_LOGS%\vazio.txt'"
 )
 
 echo Verificando se a interface ja esta rodando...
