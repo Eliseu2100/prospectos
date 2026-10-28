@@ -73,9 +73,15 @@ export function ThreadConversa({ mensagens, onRemover }: ThreadConversaProps) {
                     "rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words",
                     souEu
                       ? "rounded-br-sm bg-primary text-primary-foreground"
-                      : "rounded-bl-sm bg-muted text-foreground"
+                      : "rounded-bl-sm bg-muted text-foreground",
+                    mensagem.automatica ? "opacity-60" : ""
                   )}
                 >
+                  {mensagem.automatica ? (
+                    <span className="mb-1 block text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+                      Resposta automática do negócio
+                    </span>
+                  ) : null}
                   {mensagem.texto}
                   <span
                     className={cn(

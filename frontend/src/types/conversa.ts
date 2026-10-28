@@ -16,6 +16,8 @@ export interface MensagemConversa {
   texto: string
   enviada_em: string
   origem: OrigemMensagem
+  /** 1 = resposta automática do WhatsApp Business do negócio (não é uma pessoa) */
+  automatica?: number
 }
 
 export interface AnaliseConversa {

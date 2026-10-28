@@ -318,6 +318,9 @@ def saudacao_por_horario():
     return "Boa noite"
 
 
+# acima disso a primeira mensagem parece spam no WhatsApp (revisão de 28/10)
+MAX_CARACTERES_PRIMEIRA_MENSAGEM = 450
+
 _REGEX_SAUDACAO = re.compile(r"\b(Bom dia|Boa tarde|Boa noite)\b", re.IGNORECASE)
 
 
@@ -400,6 +403,10 @@ Regras invariáveis (valem para TODA mensagem):
 - Adapte o vocabulário ao nicho (clínica → "agenda de pacientes"; imobiliária → "captação de clientes"; restaurante → "reservas e pedidos").
 - Se o campo Nome for dominado por nome de pessoa (ex: "Dra. Ana Souza Odontologia"), fale COM a pessoa pelo primeiro nome, "você" no singular. Se for institucional (ex: "Vivarte Odontologia"), use "vocês"/"a equipe", sem inventar nomes.
 - Termine com o fechamento EXATO indicado na tarefa - pedido de ação específico e fechado, nunca "faz sentido conversarmos?".
+- Escreva o nome da empresa EXATAMENTE como está no campo Nome (sem corrigir, abreviar ou trocar letras). Se o nome for longo ou cheio de descrições ("Clínica X - Acupuntura e Fisioterapia em Santo André"), use só a parte que é o nome em si ("Clínica X").
+- Nunca cumprimente o nome da empresa como se fosse uma pessoa ("Boa tarde, Fino Bronze!"). Sem nome de pessoa, use "pessoal" ou "equipe da X", ou só a saudação.
+- Fale de RESULTADO para o negócio (agenda cheia, cliente novo que acha pelo Google, mais pedidos), nunca de tecnologia: proibido "código limpo", "engenharia de software", "SEO", "navegação perfeita", "desenvolvimento web", "anos de TI". Se o diferencial do vendedor for técnico, traduza em benefício (ex.: "entrego em 7 dias" em vez de "metodologia ágil").
+- Mensagem CURTA de WhatsApp: no máximo 3 frases e cerca de 350 caracteres. Dono de pequeno negócio lê no celular entre um cliente e outro; parágrafo longo parece spam e não é respondido.
 - Responda APENAS com o texto final da mensagem: sem aspas em volta, sem explicações, sem markdown.
 
 Exemplo do tom certo (régua de qualidade - não copie a estrutura literalmente):
@@ -411,10 +418,26 @@ def _linha_dado(rotulo, valor):
     return f"- {rotulo}: {valor}" if valor not in (None, "", 0) else None
 
 
+_SEPARADORES_NOME = (" | ", " - ", " – ", " — ", " (", ", ")
+
+
+def nome_curto_empresa(nome):
+    """Nome do Google costuma vir com descrição de SEO: "Clínica Needles -
+    Acupuntura e Fisioterapia Vestibular em Santo André". Fica só a parte que é
+    o nome ("Clínica Needles") - decidido aqui, não pelo modelo."""
+    nome = (nome or "").strip()
+    for separador in _SEPARADORES_NOME:
+        if separador in nome:
+            primeira = nome.split(separador, 1)[0].strip()
+            if len(primeira) >= 3:
+                nome = primeira
+    return nome
+
+
 def _bloco_dados_empresa(nome, categoria, endereco, nota, num_avaliacoes=None,
                          cidade=None, instagram_url=None):
     linhas = [
-        _linha_dado("Nome", nome),
+        _linha_dado("Nome (escreva exatamente assim)", nome_curto_empresa(nome)),
         _linha_dado("Categoria", categoria or "não informado"),
         _linha_dado("Cidade", cidade),
         _linha_dado("Endereço", endereco or "não informado"),
@@ -459,7 +482,7 @@ Use esse conteúdo para citar UM detalhe específico do site (algo desatualizado
         else ""
     )
 
-    return f"""Escreva UMA mensagem de primeiro contato via WhatsApp (3-5 frases) oferecendo a criação de um site profissional para a empresa abaixo.
+    return f"""Escreva UMA mensagem de primeiro contato via WhatsApp (no máximo 3 frases curtas, ~350 caracteres) oferecendo a criação de um site profissional para a empresa abaixo.
 
 {_contexto_site(site_status, site_problemas)}
 {bloco_conteudo}
@@ -527,9 +550,23 @@ def gerar_mensagem_com_fallback(nome, categoria, endereco, nota, tipo="contato",
         )
 
     try:
-        return executar_com_fallback(
+        mensagem, provedor, avisos = executar_com_fallback(
             montar_system_copywriter("WhatsApp"), user, descricao_log="gerar mensagem"
         )
+        if len(mensagem) > MAX_CARACTERES_PRIMEIRA_MENSAGEM:
+            # modelo ignorou o limite: pede pra encurtar mantendo o fechamento
+            try:
+                mensagem, provedor, mais_avisos = executar_com_fallback(
+                    montar_system_copywriter("WhatsApp"),
+                    f"Encurte esta mensagem de WhatsApp para no máximo 3 frases e "
+                    f"{MAX_CARACTERES_PRIMEIRA_MENSAGEM - 70} caracteres, mantendo o nome da empresa, "
+                    f"o problema principal e a pergunta final exatamente como estão:\n\n{mensagem}",
+                    descricao_log="encurtar mensagem",
+                )
+                avisos = avisos + mais_avisos
+            except NenhumProvedorDisponivel:
+                pass  # fica a versão longa - melhor que nenhuma
+        return mensagem, provedor, avisos
     except NenhumProvedorDisponivel as excecao:
         if excecao.erro_final is None:
             raise RuntimeError(
@@ -778,6 +815,8 @@ def _bloco_historico_conversa(mensagens):
         linhas.append(f"[... {omitidas} mensagem(ns) mais antiga(s) omitida(s) ...]")
     for mensagem in recentes:
         quem = "VOCÊ (vendedor)" if mensagem["autor"] == "vendedor" else "LEAD"
+        if mensagem.get("automatica"):
+            quem = "RESPOSTA AUTOMÁTICA DO WHATSAPP DO NEGÓCIO (não foi uma pessoa)"
         quando = (mensagem.get("enviada_em") or "").replace("T", " ")[:16]
         linhas.append(f"[{quando}] {quem}: {mensagem['texto']}")
     return "\n".join(linhas)

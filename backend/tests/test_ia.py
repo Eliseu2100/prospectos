@@ -423,3 +423,34 @@ class TestTraduzirErro:
 
     def test_erro_desconhecido_vira_mensagem_generica(self):
         assert "erro inesperado" in ia.traduzir_erro_ia(Exception("algo estranho"))
+
+
+class TestNomeCurtoEMensagemCurta:
+    @pytest.mark.parametrize("nome, esperado", [
+        ("Clínica Needles - Acupuntura e Fisioterapia Vestibular em Santo André", "Clínica Needles"),
+        ("Maldivas | Bronzeamento Artificial | Vila Prudente", "Maldivas"),
+        ("Jairo Pinheiro Nutricionista | Nutrição Esportiva", "Jairo Pinheiro Nutricionista"),
+        ("Fino Bronze SBC", "Fino Bronze SBC"),
+        ("Studio K - SP", "Studio K"),
+    ])
+    def test_nome_curto(self, nome, esperado):
+        assert ia.nome_curto_empresa(nome) == esperado
+
+    def test_mensagem_longa_e_encurtada(self, monkeypatch):
+        chamadas = []
+
+        def fallback(system, user, **kw):
+            chamadas.append(user)
+            return ("x" * 600 if len(chamadas) == 1 else "curta?"), "gemini", []
+
+        monkeypatch.setattr(ia, "executar_com_fallback", fallback)
+        mensagem, _, _ = ia.gerar_mensagem_com_fallback("Loja", "Salão", "Rua", 5.0)
+        assert mensagem == "curta?"
+        assert "Encurte" in chamadas[1]
+
+    def test_mensagem_curta_nao_gasta_segunda_chamada(self, monkeypatch):
+        chamadas = []
+        monkeypatch.setattr(ia, "executar_com_fallback",
+                            lambda system, user, **kw: chamadas.append(1) or ("Oi, tudo bem?", "groq", []))
+        ia.gerar_mensagem_com_fallback("Loja", "Salão", "Rua", 5.0)
+        assert len(chamadas) == 1

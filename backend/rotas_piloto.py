@@ -62,7 +62,7 @@ def painel_piloto():
             FROM leads l
             JOIN mensagens_conversa m ON m.id = (
                 SELECT id FROM mensagens_conversa WHERE canal = 'maps' AND lead_ref = l.place_id
-                ORDER BY enviada_em DESC, id DESC LIMIT 1)
+                AND automatica = 0 ORDER BY enviada_em DESC, id DESC LIMIT 1)
             WHERE l.piloto_status = 'humano' AND m.autor = 'lead'
             ORDER BY m.enviada_em DESC
             """

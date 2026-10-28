@@ -135,12 +135,14 @@ def enviar_whatsapp(telefone, texto):
     return chave.get("id"), chave.get("remoteJid")
 
 
-def buscar_mensagens(jid, limite=100):
+def buscar_mensagens(jid, limite=100, campo="remoteJid"):
     """Mensagens mais recentes de uma conversa (a Evolution devolve da mais nova
-    pra mais antiga)."""
+    pra mais antiga). `campo="remoteJidAlt"` acha conversas endereçadas por
+    @lid: o WhatsApp manda a resposta do contato com remoteJid=<código>@lid e o
+    número de telefone só em remoteJidAlt."""
     _, _, instancia = config_evolution()
     dados = _evolution("POST", f"/chat/findMessages/{instancia}", {
-        "where": {"key": {"remoteJid": jid}},
+        "where": {"key": {campo: jid}},
         "page": 1,
         "offset": limite,
     })

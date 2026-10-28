@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AnimatePresence } from "framer-motion"
 import { LayoutGrid, List, Loader2, Trash2 } from "lucide-react"
 import { useLeads } from "@/hooks/useLeads"
@@ -58,6 +58,15 @@ export function LeadGrid({
     () => fetchNextPage(),
     Boolean(hasNextPage) && !isFetchingNextPage
   )
+
+  // Kanban precisa de TODOS os leads: cada coluna é um status, e um lead que
+  // ficasse fora das páginas já carregadas sumiria do quadro (ex.: movido pra
+  // "respondeu" e invisível ao voltar). Na lista, a rolagem infinita resolve.
+  useEffect(() => {
+    if (visualizacao === "kanban" && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage()
+    }
+  }, [visualizacao, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   if (isLoading) {
     return (

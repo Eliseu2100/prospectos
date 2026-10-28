@@ -122,8 +122,8 @@ def listar_leads():
     nota_min_bruta = request.args.get("nota_min", "").strip()
     busca_texto = request.args.get("busca", "").strip()
     ordenar = request.args.get("ordenar", "").strip()
-    if ordenar not in ("", "score"):
-        return jsonify({"erro": f"ordenar inválido: {ordenar} (use 'score' ou omita)"}), 400
+    if ordenar not in ("", "score", "encontrados"):
+        return jsonify({"erro": f"ordenar inválido: {ordenar} (use 'score', 'encontrados' ou omita)"}), 400
     site_status_filtro = request.args.get("site_status", "").strip()
     if site_status_filtro and site_status_filtro not in SITUACOES_SITE_VALIDAS:
         return jsonify({"erro": f"site_status inválido: {site_status_filtro}"}), 400
@@ -180,8 +180,12 @@ def listar_leads():
         sql += f" ORDER BY {SQL_SCORE} DESC, nota DESC"
     elif followup_filtro == "vencido":
         sql += " ORDER BY proximo_followup ASC"  # mais atrasado primeiro
-    else:
+    elif ordenar == "encontrados":
         sql += " ORDER BY visto_em DESC, nota DESC"
+    else:
+        # padrão: atividade recente - lead que você acabou de mover/contatar
+        # sobe pro topo em vez de ficar perdido entre os encontrados na busca
+        sql += " ORDER BY atualizado_em DESC, visto_em DESC, nota DESC"
     sql += " LIMIT ? OFFSET ?"
     parametros_com_paginacao = [*parametros, limit + 1, offset]
 

@@ -11,10 +11,13 @@ export function OrdenacaoLeadsSelect({ valor, onChange }: OrdenacaoLeadsSelectPr
     <SelectComVazio
       valor={valor}
       onChange={(v) => onChange(v as FiltrosLeads["ordenar"])}
-      opcoes={[{ valor: "score", label: "Melhor score" }]}
-      labelVazio="Mais recentes"
+      opcoes={[
+        { valor: "score", label: "Melhor score" },
+        { valor: "encontrados", label: "Encontrados por último" },
+      ]}
+      labelVazio="Atividade recente"
       placeholder="Ordenar por"
-      className="w-[160px]"
+      className="w-[190px]"
     />
   )
 }

@@ -70,7 +70,7 @@ def whatsapp(monkeypatch, banco):
 
     monkeypatch.setattr(mensageiros, "enviar_whatsapp", enviar)
     monkeypatch.setattr(mensageiros, "estado_whatsapp", lambda: "open")
-    monkeypatch.setattr(mensageiros, "buscar_mensagens", lambda jid, limite=100: falso.conversas.get(jid, []))
+    monkeypatch.setattr(mensageiros, "buscar_mensagens", lambda jid, limite=100, campo="remoteJid": falso.conversas.get(jid if campo == "remoteJid" else ("alt", jid), []))
     monkeypatch.setattr(mensageiros, "enviar_telegram", lambda texto, chat_id=None: None)
     return falso
 

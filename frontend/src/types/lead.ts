@@ -58,7 +58,7 @@ export interface FiltrosLeads {
   status: StatusLead | ""
   nicho: string
   nota_min: "" | "4" | "4.5" | "5"
-  ordenar: "" | "score"
+  ordenar: "" | "score" | "encontrados"
   site_status: "" | "sem_site" | "site_ruim" | "site_ok"
   /** Não aparece na barra de filtros - usado pela fila da sessão de prospecção */
   followup: "" | "vencido"

@@ -130,21 +130,23 @@ def _chave_dedup(autor, texto, enviada_em, id_externo=None):
 
 def _listar_mensagens(conexao, canal, lead_ref):
     linhas = conexao.execute(
-        "SELECT id, autor, texto, enviada_em, origem FROM mensagens_conversa "
+        "SELECT id, autor, texto, enviada_em, origem, automatica FROM mensagens_conversa "
         "WHERE canal = ? AND lead_ref = ? ORDER BY enviada_em, id",
         (canal, str(lead_ref)),
     ).fetchall()
     return [dict(linha) for linha in linhas]
 
 
-def _inserir_mensagem(conexao, canal, lead_ref, autor, texto, enviada_em, origem, chave_dedup):
+def _inserir_mensagem(conexao, canal, lead_ref, autor, texto, enviada_em, origem, chave_dedup,
+                      automatica=False):
     """Insere ignorando duplicata (UNIQUE em canal+lead_ref+chave_dedup).
+    `automatica`: resposta automática do negócio (boas-vindas/menu/ausente).
     Retorna True se gravou de fato."""
     cursor = conexao.execute(
         "INSERT OR IGNORE INTO mensagens_conversa "
-        "(canal, lead_ref, autor, texto, enviada_em, origem, chave_dedup, criada_em) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (canal, str(lead_ref), autor, texto, enviada_em, origem, chave_dedup, _agora()),
+        "(canal, lead_ref, autor, texto, enviada_em, origem, chave_dedup, criada_em, automatica) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (canal, str(lead_ref), autor, texto, enviada_em, origem, chave_dedup, _agora(), int(bool(automatica))),
     )
     return cursor.rowcount > 0
 

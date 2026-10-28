@@ -274,11 +274,15 @@ def registro_wa(id_msg, texto, from_me=False, ts=1793150000, jid="5565996757327@
 
 @pytest.fixture
 def evolution_com_mensagens(monkeypatch, evolution_configurada):
-    """Substitui a busca da Evolution por um dict jid -> registros."""
+    """Substitui a busca da Evolution por um dict jid -> registros. Conversas
+    endereçadas por @lid ficam em conversas[("alt", <jid do telefone>)] e só
+    aparecem na consulta por remoteJidAlt - igual à Evolution real."""
     conversas = {}
     consultados = []
 
-    def buscar(jid, limite=100):
+    def buscar(jid, limite=100, campo="remoteJid"):
+        if campo == "remoteJidAlt":
+            return conversas.get(("alt", jid), [])
         consultados.append(jid)
         return conversas.get(jid, [])
 
@@ -356,6 +360,26 @@ class TestSincronizacao:
 
         assert cliente.post("/api/envio/whatsapp/sincronizar/maps/place-1").get_json()["novas"] == 1
         assert "999@lid" in consultados
+
+    def test_resposta_por_lid_e_encontrada_e_o_lid_fica_salvo(self, cliente, evolution_com_mensagens):
+        """O caso real de 28/10: o cliente responde e o WhatsApp entrega com
+        remoteJid=<código>@lid; o telefone só vem em remoteJidAlt."""
+        conversas, consultados = evolution_com_mensagens
+        criar_lead(status="contatado")
+        conversas[("alt", "5565996757327@s.whatsapp.net")] = [
+            registro_wa("R1", "Oi, tenho interesse", jid="777@lid"),
+        ]
+        assert cliente.post("/api/envio/whatsapp/sincronizar").get_json()["novas"] == 1
+        conexao = db.conectar()
+        try:
+            lead = conexao.execute("SELECT status, whatsapp_jid FROM leads").fetchone()
+        finally:
+            conexao.close()
+        assert lead["status"] == "respondeu"
+        assert lead["whatsapp_jid"] == "777@lid"
+        # próxima rodada consulta o @lid direto
+        cliente.post("/api/envio/whatsapp/sincronizar")
+        assert "777@lid" in consultados
 
     def test_lead_novo_sem_mensagens_nao_e_consultado(self, cliente, evolution_com_mensagens):
         _, consultados = evolution_com_mensagens
@@ -489,7 +513,7 @@ class TestTestarTudo:
 
         monkeypatch.setattr(mensageiros, "enviar_whatsapp", enviar)
         monkeypatch.setattr(mensageiros, "buscar_mensagens",
-                            lambda jid, limite=100: [{"key": {"id": "TESTE1", "fromMe": True}}])
+                            lambda jid, limite=100, campo="remoteJid": [{"key": {"id": "TESTE1", "fromMe": True}}])
         return enviados
 
     def test_tudo_funcionando(self, cliente, evolution_ok, monkeypatch):
@@ -530,7 +554,95 @@ class TestTestarTudo:
         assert "QR code" in corpo["itens"][0]["detalhe"]
 
     def test_mensagem_nao_volta_na_leitura(self, cliente, evolution_ok, monkeypatch):
-        monkeypatch.setattr(mensageiros, "buscar_mensagens", lambda jid, limite=100: [])
+        monkeypatch.setattr(mensageiros, "buscar_mensagens", lambda jid, limite=100, campo="remoteJid": [])
         corpo = cliente.post("/api/envio/testar-tudo").get_json()
         leitura = next(i for i in corpo["itens"] if i["nome"] == "Leitura das conversas")
         assert leitura["ok"] is False
+
+
+# ---------------------------------------------------------------------------
+# Respostas automáticas do WhatsApp Business (casos reais de 28/10)
+# ---------------------------------------------------------------------------
+
+class TestRespostaAutomatica:
+    @pytest.mark.parametrize("texto", [
+        "Olá! Seja bem-vindo(a) 👋 Somos um estúdio profissional...",
+        "🌟 Olá! Aqui é a Talita da Clínica. No momento, estamos ausentes, mas não se preocupe!",
+        "Obrigado por escolher a *Clínica Needles* Digite *apenas* seu primeiro *NOME*",
+        "Para facilitar seu atendimento, responda com o número do atendimento desejado: 1️⃣ – Psicoterapia",
+        "Pele Bella Depilação agradece seu contato. Como podemos ajudar? retornarei",
+        "Agradeço sua mensagem. Não estou disponível no momento, responderei assim que possível.",
+        "Olá! 🐾 Você entrou em contato com o Hospital Veterinário YOUPETZ. Nosso atendimento é 24 horas!",
+        "Um atendente já foi notificado e iniciará o atendimento em instantes.",
+    ])
+    def test_robos_reais(self, texto):
+        assert sincronizacao_whatsapp.e_resposta_automatica(texto, segundos_desde_nossa=5)
+
+    def test_frase_fraca_rapida_e_robo(self):
+        assert sincronizacao_whatsapp.e_resposta_automatica(
+            "Olá. Para agilizar me fala NOME COMPLETO. Dia e horário melhor para agendamento", 3)
+        assert sincronizacao_whatsapp.e_resposta_automatica(
+            "Bom dia. Tudo bem? Somos da Clínica NEOCOG. Em que podemos ajudar?", 10)
+
+    def test_frase_fraca_lenta_e_pessoa(self):
+        assert not sincronizacao_whatsapp.e_resposta_automatica("Oi, em que podemos ajudar?", 3600)
+
+    @pytest.mark.parametrize("texto", [
+        "Envia pra mim", "Já estamos com um site em produção, obrigado", "Nao obrigado",
+        "Obrigada Eliseu. Agradeço mas no momento não é viável para mim", "Boa tarde",
+        "*Rosa:* Olá, boa tarde. No momento não temos interesse, muito obrigada!",
+    ])
+    def test_pessoas_reais_mesmo_rapidas(self, texto):
+        assert not sincronizacao_whatsapp.e_resposta_automatica(texto, segundos_desde_nossa=40)
+
+    def test_robo_nao_marca_respondeu_nem_avisa(self, cliente, evolution_com_mensagens, monkeypatch):
+        avisos = []
+        monkeypatch.setattr(mensageiros, "avisar_vendedor", avisos.append)
+        conversas, _ = evolution_com_mensagens
+        criar_lead(status="contatado")
+        conexao = db.conectar()
+        try:
+            conexao.execute("UPDATE leads SET piloto_status = 'humano'")
+            conexao.commit()
+        finally:
+            conexao.close()
+        from datetime import datetime
+        ts = int(datetime.now().timestamp())
+        conversas["5565996757327@s.whatsapp.net"] = [
+            registro_wa("BOT", "Olá! Seja bem-vindo(a)! Responderemos em breve.", ts=ts),
+            registro_wa("EU", "Oi, tudo bem?", from_me=True, ts=ts - 3),
+        ]
+        cliente.post("/api/envio/whatsapp/sincronizar")
+        conexao = db.conectar()
+        try:
+            assert conexao.execute("SELECT status FROM leads").fetchone()["status"] == "contatado"
+            assert conexao.execute(
+                "SELECT automatica FROM mensagens_conversa WHERE autor = 'lead'").fetchone()[0] == 1
+        finally:
+            conexao.close()
+        assert avisos == []
+
+    def test_reclassificar_devolve_para_contatado(self, banco):
+        criar_lead(status="respondeu")
+        conexao = db.conectar()
+        try:
+            for autor, texto, quando in [("vendedor", "Oi!", "2026-10-28T10:00:00"),
+                                         ("lead", "Seja bem-vindo(a)! Digite 1", "2026-10-28T10:00:04")]:
+                conexao.execute(
+                    "INSERT INTO mensagens_conversa (canal, lead_ref, autor, texto, enviada_em, origem, criada_em) "
+                    "VALUES ('maps', 'place-1', ?, ?, ?, 'whatsapp', ?)", (autor, texto, quando, quando))
+            conexao.commit()
+        finally:
+            conexao.close()
+        assert sincronizacao_whatsapp.reclassificar_respostas_automaticas() == 1
+        conexao = db.conectar()
+        try:
+            assert conexao.execute("SELECT status FROM leads").fetchone()["status"] == "contatado"
+        finally:
+            conexao.close()
+
+
+def test_texto_longo_instantaneo_e_robo():
+    texto = "Olá, aqui é da recepção, recebemos seu contato e logo alguém fala com você aqui."
+    assert sincronizacao_whatsapp.e_resposta_automatica(texto, segundos_desde_nossa=4)
+    assert not sincronizacao_whatsapp.e_resposta_automatica(texto, segundos_desde_nossa=300)

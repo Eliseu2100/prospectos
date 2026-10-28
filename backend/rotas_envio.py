@@ -323,11 +323,12 @@ def caixa_de_entrada():
             SELECT l.place_id, l.nome, l.telefone, l.status, l.nicho,
                    m.autor AS ultimo_autor, m.texto AS ultimo_texto, m.enviada_em AS ultima_em,
                    (SELECT COUNT(*) FROM mensagens_conversa x
-                     WHERE x.canal = 'maps' AND x.lead_ref = l.place_id AND x.autor = 'lead') AS msgs_do_lead
+                     WHERE x.canal = 'maps' AND x.lead_ref = l.place_id AND x.autor = 'lead'
+                       AND x.automatica = 0) AS msgs_do_lead
             FROM leads l
             JOIN mensagens_conversa m ON m.id = (
                 SELECT id FROM mensagens_conversa
-                WHERE canal = 'maps' AND lead_ref = l.place_id
+                WHERE canal = 'maps' AND lead_ref = l.place_id AND automatica = 0
                 ORDER BY enviada_em DESC, id DESC LIMIT 1)
             WHERE l.status != 'ignorado'
             ORDER BY m.enviada_em DESC

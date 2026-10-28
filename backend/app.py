@@ -183,6 +183,7 @@ if __name__ == "__main__":
 
         # traz as respostas dos leads do WhatsApp (Evolution API) pro histórico
         import sincronizacao_whatsapp
+        sincronizacao_whatsapp.reclassificar_respostas_automaticas()
         sincronizacao_whatsapp.iniciar_em_segundo_plano()
         # piloto automático (só age quando ligado em Piloto automático)
         import piloto

@@ -67,11 +67,80 @@ def texto_da_mensagem(registro):
     return f"[{tipo}]"
 
 
+# Frases de mensagem automática de WhatsApp Business (comparadas sem acento e
+# em minúsculas). FORTES bastam sozinhas; FRACAS só valem se a mensagem chegou
+# logo depois da nossa (robô responde em segundos, pessoa demora mais).
+FRASES_AUTOMATICAS_FORTES = (
+    "seja bem-vind", "seja muito bem-vind", "bem-vindo(a)", "bem-vinda(o)",
+    "estamos ausentes", "estou ausente", "no momento estamos", "nao estou disponivel",
+    "nao estamos disponiveis", "responderemos", "retornaremos", "retornarei",
+    "agradece seu contato", "agradece o seu contato", "agradecemos seu contato", "agradeco sua mensagem",
+    "agradecemos sua mensagem", "obrigado por escolher", "obrigada por escolher", "digite ",
+    "responda com o numero", "mensagem automatica", "resposta automatica",
+    "horario de atendimento", "nosso horario", "1️⃣", "aguarde nosso retorno",
+    "assim que possivel", "assim que retornarmos", "em breve retornaremos",
+    "voce entrou em contato", "atendente ja foi notificado", "iniciara o atendimento",
+    "nosso whatsapp funciona", "em instantes",
+)
+FRASES_AUTOMATICAS_FRACAS = (
+    "em que podemos ajudar", "como podemos ajudar", "para agilizar", "para facilitar",
+    "nome completo", "somos da", "somos a", "aqui e a", "aqui e o",
+)
+SEGUNDOS_MAX_RESPOSTA_ROBO = 90
+# texto longo em poucos segundos: ninguém lê a nossa mensagem e digita isso tão rápido
+SEGUNDOS_RESPOSTA_INSTANTANEA = 15
+CARACTERES_TEXTO_LONGO = 60
+
+
+def _normalizar(texto):
+    import unicodedata
+    sem_acento = unicodedata.normalize("NFKD", texto or "").encode("ascii", "ignore").decode()
+    # emojis de número (1️⃣) somem no ascii; confere no texto original também
+    return sem_acento.lower(), (texto or "").lower()
+
+
+def segundos_desde_minha_ultima(minhas_em, enviada_em):
+    """Segundos entre a última mensagem nossa ANTES desta e esta (None se não houver)."""
+    anteriores = [m for m in minhas_em if m <= enviada_em]
+    if not anteriores:
+        return None
+    try:
+        return (datetime.fromisoformat(enviada_em) - datetime.fromisoformat(max(anteriores))).total_seconds()
+    except ValueError:
+        return None
+
+
+def e_resposta_automatica(texto, segundos_desde_nossa=None):
+    """Mensagem de boas-vindas/menu/ausência do WhatsApp Business do negócio -
+    não é uma pessoa respondendo. Ajustado com as conversas reais de 28/10."""
+    normalizado, original = _normalizar(texto)
+    if any(frase in normalizado or frase in original for frase in FRASES_AUTOMATICAS_FORTES):
+        return True
+    if (segundos_desde_nossa is not None and segundos_desde_nossa <= SEGUNDOS_RESPOSTA_INSTANTANEA
+            and len((texto or "").strip()) >= CARACTERES_TEXTO_LONGO):
+        return True
+    rapida = segundos_desde_nossa is not None and segundos_desde_nossa <= SEGUNDOS_MAX_RESPOSTA_ROBO
+    return rapida and any(frase in normalizado for frase in FRASES_AUTOMATICAS_FRACAS)
+
+
 def jids_do_lead(lead):
     jids = {f"55{v}@s.whatsapp.net" for v in _variantes_telefone(lead.get("telefone"))}
     if lead.get("whatsapp_jid"):
         jids.add(lead["whatsapp_jid"])
     return jids
+
+
+def consultas_do_lead(lead):
+    """(jid, campo) a consultar na Evolution. Cada número de telefone é buscado
+    em remoteJid (conversa endereçada pelo número) E em remoteJidAlt (conversa
+    endereçada por @lid, que é como o WhatsApp entrega boa parte das respostas
+    desde 2026). O @lid já aprendido do lead também é consultado direto."""
+    consultas = []
+    for jid in sorted(jids_do_lead(lead)):
+        consultas.append((jid, "remoteJid"))
+        if jid.endswith("@s.whatsapp.net"):
+            consultas.append((jid, "remoteJidAlt"))
+    return consultas
 
 
 def _data_iso(registro):
@@ -91,28 +160,50 @@ def sincronizar_lead(conexao, lead):
     ultima_do_lead = None  # (enviada_em, texto) da mensagem nova mais recente do lead
     vistos = set()
 
-    for jid in jids_do_lead(lead):
-        for registro in mensageiros.buscar_mensagens(jid, MENSAGENS_POR_CONVERSA):
+    jid_lid_descoberto = None
+    registros = []
+    for jid, campo in consultas_do_lead(lead):
+        for registro in mensageiros.buscar_mensagens(jid, MENSAGENS_POR_CONVERSA, campo=campo):
             chave = registro.get("key") or {}
             id_msg = chave.get("id")
             if not id_msg or id_msg in vistos:
                 continue
             vistos.add(id_msg)
-            texto = texto_da_mensagem(registro)
-            if not texto:
-                continue
-            autor = "vendedor" if chave.get("fromMe") else "lead"
-            if _inserir_mensagem(conexao, "maps", place_id, autor,
-                                 texto[:MAX_CARACTERES_MENSAGEM_CONVERSA],
-                                 _data_iso(registro), "whatsapp", f"wa:{id_msg}"):
-                novas += 1
-                if autor == "lead":
-                    novas_do_lead += 1
-                    enviada_em = _data_iso(registro)
-                    if ultima_do_lead is None or enviada_em > ultima_do_lead[0]:
-                        ultima_do_lead = (enviada_em, texto)
-                else:
-                    novas_minhas += 1
+            if str(chave.get("remoteJid", "")).endswith("@lid"):
+                jid_lid_descoberto = chave["remoteJid"]
+            registros.append(registro)
+
+    # ordem cronológica: pra saber quanto tempo cada resposta levou desde a
+    # nossa última mensagem (resposta automática chega em segundos)
+    registros.sort(key=_data_iso)
+    minhas_em = [linha[0] for linha in conexao.execute(
+        "SELECT enviada_em FROM mensagens_conversa WHERE canal = 'maps' AND lead_ref = ? AND autor = 'vendedor'",
+        (place_id,))]
+    for registro in registros:
+        chave = registro.get("key") or {}
+        texto = texto_da_mensagem(registro)
+        if not texto:
+            continue
+        enviada_em = _data_iso(registro)
+        autor = "vendedor" if chave.get("fromMe") else "lead"
+        automatica = autor == "lead" and e_resposta_automatica(
+            texto, segundos_desde_minha_ultima(minhas_em, enviada_em))
+        if autor == "vendedor":
+            minhas_em.append(enviada_em)
+        if _inserir_mensagem(conexao, "maps", place_id, autor,
+                             texto[:MAX_CARACTERES_MENSAGEM_CONVERSA],
+                             enviada_em, "whatsapp", f"wa:{chave.get('id')}", automatica=automatica):
+            novas += 1
+            if autor == "vendedor":
+                novas_minhas += 1
+            elif not automatica:  # só resposta de uma pessoa conta
+                novas_do_lead += 1
+                if ultima_do_lead is None or enviada_em > ultima_do_lead[0]:
+                    ultima_do_lead = (enviada_em, texto)
+
+    # guarda o @lid aprendido: as próximas consultas já vão direto nele
+    if jid_lid_descoberto and lead.get("whatsapp_jid") != jid_lid_descoberto:
+        conexao.execute("UPDATE leads SET whatsapp_jid = ? WHERE place_id = ?", (jid_lid_descoberto, place_id))
 
     # mensagem sua que não veio do app = você respondeu pelo celular: o piloto
     # automático sai da conversa (as do app têm a mesma chave e não entram aqui)
@@ -198,3 +289,50 @@ def iniciar_em_segundo_plano():
     threading.Thread(target=_laco_em_segundo_plano, args=(parar,), daemon=True,
                      name="sincronizacao-whatsapp").start()
     return parar
+
+
+def reclassificar_respostas_automaticas():
+    """Reaplica a detecção de resposta automática no histórico já importado e
+    devolve para 'contatado' os leads que só "responderam" com robô (status
+    'respondeu' sem nenhuma mensagem de pessoa). Idempotente - roda no startup."""
+    conexao = db.conectar()
+    try:
+        por_lead = {}
+        for linha in conexao.execute(
+            "SELECT id, lead_ref, autor, texto, enviada_em FROM mensagens_conversa "
+            "WHERE canal = 'maps' ORDER BY enviada_em, id"
+        ):
+            por_lead.setdefault(linha["lead_ref"], []).append(dict(linha))
+
+        for mensagens in por_lead.values():
+            minhas_em = []
+            for m in mensagens:
+                if m["autor"] == "vendedor":
+                    minhas_em.append(m["enviada_em"])
+                    continue
+                automatica = e_resposta_automatica(m["texto"], segundos_desde_minha_ultima(minhas_em, m["enviada_em"]))
+                conexao.execute("UPDATE mensagens_conversa SET automatica = ? WHERE id = ?", (int(automatica), m["id"]))
+
+        agora = datetime.now().isoformat(timespec="seconds")
+        so_robo = conexao.execute(
+            """
+            SELECT place_id FROM leads l WHERE status = 'respondeu' AND NOT EXISTS (
+                SELECT 1 FROM mensagens_conversa m WHERE m.canal = 'maps' AND m.lead_ref = l.place_id
+                  AND m.autor = 'lead' AND m.automatica = 0)
+              AND EXISTS (
+                SELECT 1 FROM mensagens_conversa m WHERE m.canal = 'maps' AND m.lead_ref = l.place_id
+                  AND m.automatica = 1)
+            """
+        ).fetchall()
+        for linha in so_robo:
+            conexao.execute("UPDATE leads SET status = 'contatado', atualizado_em = ? WHERE place_id = ?",
+                            (agora, linha["place_id"]))
+            conexao.execute(
+                "INSERT INTO historico_status (place_id, status_anterior, status_novo, alterado_em) "
+                "VALUES (?, 'respondeu', 'contatado', ?)", (linha["place_id"], agora))
+        conexao.commit()
+        if so_robo:
+            logger.info("%s lead(s) voltaram para 'contatado': só havia resposta automática", len(so_robo))
+        return len(so_robo)
+    finally:
+        conexao.close()

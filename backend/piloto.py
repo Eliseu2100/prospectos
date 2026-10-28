@@ -58,6 +58,9 @@ _FRASES_OPT_OUT = (
     "nao tenho interesse", "nao temos interesse", "sem interesse", "nao quero", "nao precisamos",
     "nao preciso", "pare de", "para de mandar", "parar de mandar", "nao me mande", "nao mande mais",
     "me tira", "me remove", "remover meu", "descadastr", "spam", "nao insista", "bloquear",
+    # recusas educadas vistas nas conversas reais de 28/10
+    "nao obrigad", "nao e viavel", "nao, obrigad", "ja temos site", "ja temos um site",
+    "ja estamos com um site", "ja estamos com site", "ja tenho site", "ja tenho um site",
 )
 
 _estado = {"proximo_contato_em": None, "ultimo_erro": None, "rodando": False}
@@ -240,7 +243,7 @@ def leads_aguardando_resposta(conexao, agora=None):
         SELECT l.* FROM leads l
         JOIN mensagens_conversa m ON m.id = (
             SELECT id FROM mensagens_conversa
-            WHERE canal = 'maps' AND lead_ref = l.place_id
+            WHERE canal = 'maps' AND lead_ref = l.place_id AND automatica = 0
             ORDER BY enviada_em DESC, id DESC LIMIT 1)
         WHERE l.piloto_status = 'automatico' AND m.autor = 'lead' AND m.enviada_em <= ?
         """,

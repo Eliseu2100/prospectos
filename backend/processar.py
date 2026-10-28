@@ -648,6 +648,11 @@ def migrar_banco(conexao):
         )
         """
     )
+    # resposta automática do negócio (boas-vindas, menu, "estamos ausentes"):
+    # fica no histórico, mas não conta como resposta de uma pessoa
+    colunas_mensagens = {linha[1] for linha in conexao.execute("PRAGMA table_info(mensagens_conversa)")}
+    if "automatica" not in colunas_mensagens:
+        conexao.execute("ALTER TABLE mensagens_conversa ADD COLUMN automatica INTEGER NOT NULL DEFAULT 0")
 
     # Última análise da negociação feita pela IA para cada conversa. Guardamos
     # o histórico (uma linha por análise) para o cockpit poder mostrar a mais
