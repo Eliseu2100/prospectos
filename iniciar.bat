@@ -5,6 +5,10 @@ set PASTA_BACKEND=%~dp0backend
 set PASTA_FRONTEND=%~dp0frontend
 set PASTA_LOGS=%~dp0logs
 
+rem dados (banco, backups, logs, sessao do Instagram) fora do OneDrive: o
+rem sincronizador trava o leads.db e o SQLite responde "database is locked"
+set PROSPECCAO_DIR_DADOS=%LOCALAPPDATA%\SeriaxOS
+
 rem usa o ambiente virtual do backend (.venv) se ele existir
 set PYTHON_BACKEND=py
 if exist "%PASTA_BACKEND%\.venv\Scripts\python.exe" set PYTHON_BACKEND=%PASTA_BACKEND%\.venv\Scripts\python.exe

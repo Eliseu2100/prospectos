@@ -932,9 +932,9 @@ def processar(caminho_csv_bruto, caminho_queries=CAMINHO_QUERIES_PADRAO, callbac
                 callback_progresso(processadas, total_candidatas, linha.get("title") or "")
 
     # Fase 3: grava no banco sequencialmente (evita concorrência de escrita no SQLite)
-    conexao = sqlite3.connect(CAMINHO_BANCO, timeout=10)
+    conexao = sqlite3.connect(CAMINHO_BANCO, timeout=30)
     conexao.execute("PRAGMA journal_mode=WAL")
-    conexao.execute("PRAGMA busy_timeout=10000")
+    conexao.execute("PRAGMA busy_timeout=30000")
     conexao.execute("PRAGMA foreign_keys=ON")
     preparar_banco(conexao)
 

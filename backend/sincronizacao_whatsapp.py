@@ -166,7 +166,8 @@ def sincronizar_todos():
             total = 0
             for lead in leads_em_conversa(conexao):
                 total += sincronizar_lead(conexao, lead)
-            conexao.commit()
+                # grava lead a lead: nunca segura o banco durante as chamadas à Evolution
+                conexao.commit()
         finally:
             conexao.close()
         _estado.update({"ultima_em": datetime.now().isoformat(timespec="seconds"),

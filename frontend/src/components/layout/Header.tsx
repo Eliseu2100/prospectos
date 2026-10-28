@@ -3,6 +3,7 @@ import { BookOpen, Bot, ListTodo, MapPin, MessagesSquare, Plus, Settings, Trash2
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/layout/ThemeToggle"
+import { BuscaEmAndamentoBarra } from "@/components/layout/BuscaEmAndamentoBarra"
 import { InstagramIcon } from "@/components/icons/InstagramIcon"
 
 interface HeaderProps {
@@ -97,6 +98,7 @@ export function Header({ onNovaBusca, onVerIgnorados }: HeaderProps) {
           <ThemeToggle />
         </nav>
       </div>
+      <BuscaEmAndamentoBarra />
     </header>
   )
 }

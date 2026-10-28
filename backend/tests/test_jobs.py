@@ -340,3 +340,77 @@ class TestRodarScraperComProgresso:
             )
         # cortou perto de 1s, muito antes de rodar pra sempre
         assert time.monotonic() - inicio < 15
+
+
+# ---------------------------------------------------------------------------
+# Busca travada e cancelamento
+# ---------------------------------------------------------------------------
+
+import threading
+
+
+class TestBuscaNaoFicaPresa:
+    def test_banco_ocupado_no_inicio_libera_a_marcacao(self, banco, monkeypatch):
+        """Era o bug: o registro do job falhava antes do try e 'rodando' ficava True para sempre."""
+        def banco_travado(*a, **k):
+            raise __import__("sqlite3").OperationalError("database is locked")
+
+        monkeypatch.setattr(jobs, "_registrar_inicio_job", banco_travado)
+        jobs.estado_busca["rodando"] = True
+        jobs._rodar_busca_em_background()
+        assert jobs.estado_busca["rodando"] is False
+        assert jobs.tentar_reservar_busca() is True  # dá pra buscar de novo
+
+    def test_cancelar_sem_busca(self):
+        assert jobs.cancelar_busca() == "nada"
+
+    def test_destrava_busca_fantasma(self, banco):
+        jobs.estado_busca["rodando"] = True
+        jobs._thread_busca = None  # nenhuma thread viva de verdade
+        assert jobs.cancelar_busca() == "destravada"
+        assert jobs.estado_busca["rodando"] is False
+
+    def test_cancela_busca_em_andamento(self, banco, monkeypatch):
+        """Places API "lenta": o cancelamento interrompe no próximo ponto de progresso."""
+        import fontes_maps
+        liberar = threading.Event()
+
+        def places_lenta(queries, arquivo_csv, chave, area=None, callback_query=None):
+            for i, texto in enumerate(queries, start=1):
+                liberar.wait(5)
+                callback_query(i, len(queries), texto)  # aqui o cancelamento é conferido
+            return 0
+
+        db.salvar_config("fonte_maps", "places")
+        monkeypatch.setattr(db, "obter_config",
+                            lambda chave, default=None: {"fonte_maps": "places", "places": "k"}.get(chave, default))
+        monkeypatch.setattr(fontes_maps, "buscar_com_places_api", places_lenta)
+        monkeypatch.setattr(jobs, "_ler_queries_da_busca", lambda: ["a", "b"])
+        monkeypatch.setattr(db, "fazer_backup_banco", lambda: None)
+
+        assert jobs.tentar_reservar_busca()
+        jobs.iniciar_thread_busca()
+        assert jobs.cancelar_busca() == "cancelando"
+        liberar.set()
+        jobs._thread_busca.join(timeout=10)
+
+        assert jobs.estado_busca["rodando"] is False
+        assert "cancelada" in jobs.estado_busca["mensagem"]
+
+    def test_cancelamento_mata_o_processo_do_scraper(self, banco, monkeypatch):
+        class Processo:
+            morto = False
+            def poll(self):
+                return None
+            def kill(self):
+                Processo.morto = True
+
+        jobs.estado_busca["rodando"] = True
+        vivo = threading.Thread(target=time.sleep, args=(0.5,))
+        vivo.start()
+        monkeypatch.setattr(jobs, "_thread_busca", vivo)
+        monkeypatch.setattr(jobs, "_processo_scraper", Processo())
+        assert jobs.cancelar_busca() == "cancelando"
+        assert Processo.morto is True
+        vivo.join()
+        jobs._cancelar_busca.clear()

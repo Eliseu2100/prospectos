@@ -77,10 +77,10 @@ def _keyring_apagar(chave):
 
 
 def conectar():
-    conexao = sqlite3.connect(CAMINHO_BANCO, timeout=10)
+    conexao = sqlite3.connect(CAMINHO_BANCO, timeout=30)
     conexao.row_factory = sqlite3.Row
     conexao.execute("PRAGMA journal_mode=WAL")
-    conexao.execute("PRAGMA busy_timeout=10000")
+    conexao.execute("PRAGMA busy_timeout=30000")
     conexao.execute("PRAGMA foreign_keys=ON")
     return conexao
 

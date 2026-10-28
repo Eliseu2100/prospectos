@@ -144,3 +144,50 @@ class TestServirFrontend:
             resposta = cliente.get("/")
             assert resposta.status_code == 404
             assert "5173" in resposta.get_json()["erro"]
+
+
+# ---------------------------------------------------------------------------
+# Pasta de dados fora do OneDrive (migração única, só copia)
+# ---------------------------------------------------------------------------
+
+class TestMigracaoDaPastaDeDados:
+    def _pasta_antiga(self, raiz):
+        import sqlite3
+        antiga = raiz / "antiga"
+        (antiga / "instagram" / "sessao").mkdir(parents=True)
+        (antiga / "instagram" / "sessao" / "session-eu.json").write_text("{}", encoding="utf-8")
+        c = sqlite3.connect(antiga / "leads.db")
+        c.execute("CREATE TABLE leads (place_id TEXT)")
+        c.execute("INSERT INTO leads VALUES ('p1')")
+        c.commit()
+        c.close()
+        return antiga
+
+    def test_copia_banco_e_sessao_e_renomeia_o_antigo(self, tmp_path):
+        import sqlite3
+        antiga = self._pasta_antiga(tmp_path)
+        nova = tmp_path / "nova"
+        assert paths.migrar_dados_da_pasta_antiga(antiga, nova) is True
+        c = sqlite3.connect(nova / "leads.db")
+        assert c.execute("SELECT place_id FROM leads").fetchall() == [("p1",)]
+        c.close()
+        assert (nova / "instagram" / "sessao" / "session-eu.json").exists()
+        assert not (antiga / "leads.db").exists()
+        assert (antiga / "leads.db-antigo").exists()  # nada apagado
+
+    def test_nao_sobrescreve_banco_ja_existente(self, tmp_path):
+        antiga = self._pasta_antiga(tmp_path)
+        nova = tmp_path / "nova"
+        nova.mkdir()
+        (nova / "leads.db").write_bytes(b"existente")
+        assert paths.migrar_dados_da_pasta_antiga(antiga, nova) is False
+        assert (nova / "leads.db").read_bytes() == b"existente"
+        assert (antiga / "leads.db").exists()
+
+    def test_sem_variavel_nao_migra(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("PROSPECCAO_DIR_DADOS", raising=False)
+        chamadas = []
+        monkeypatch.setattr(paths, "migrar_dados_da_pasta_antiga", lambda *a: chamadas.append(1))
+        monkeypatch.setattr(paths, "DIR_DADOS", tmp_path / "d")
+        paths.garantir_pastas_de_dados()
+        assert chamadas == []

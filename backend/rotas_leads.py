@@ -932,6 +932,17 @@ def disparar_busca():
     return jsonify({"ok": True})
 
 
+@bp.route("/api/buscar/cancelar", methods=["POST"])
+def cancelar_busca():
+    resultado = jobs.cancelar_busca()
+    mensagens = {
+        "nada": "Não há busca em andamento.",
+        "destravada": "A busca estava travada e foi encerrada. Você já pode fazer uma nova.",
+        "cancelando": "Cancelando a busca...",
+    }
+    return jsonify({"ok": True, "resultado": resultado, "mensagem": mensagens[resultado]})
+
+
 @bp.route("/api/buscar/status")
 def status_busca():
     return jsonify(jobs.estado_busca)

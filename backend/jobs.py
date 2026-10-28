@@ -67,6 +67,41 @@ _lock_estado_instagram = threading.Lock()
 _job_id_busca = None
 _job_id_instagram = None
 
+# cancelamento da busca: o botão "Cancelar" liga o evento; os pontos de progresso
+# da busca conferem e interrompem, e o processo do scraper (se houver) é morto
+_cancelar_busca = threading.Event()
+_thread_busca = None
+_processo_scraper = None
+
+
+class BuscaCancelada(Exception):
+    """Levantada nos pontos de progresso quando o usuário cancela a busca."""
+
+
+def _conferir_cancelamento():
+    if _cancelar_busca.is_set():
+        raise BuscaCancelada()
+
+
+def cancelar_busca():
+    """Pede o cancelamento. Retorna 'nada' (não havia busca), 'destravada' (a
+    marcação estava presa sem busca de verdade rodando) ou 'cancelando'."""
+    global _job_id_busca
+    if not estado_busca["rodando"]:
+        return "nada"
+    if _thread_busca is None or not _thread_busca.is_alive():
+        # busca "fantasma": a thread morreu sem passar pelo finally
+        estado_busca.update({"rodando": False, "etapa": "", "mensagem": "Busca interrompida."})
+        _finalizar_job(_job_id_busca, "interrompido", "Busca interrompida.")
+        _job_id_busca = None
+        return "destravada"
+    _cancelar_busca.set()
+    estado_busca["mensagem"] = "Cancelando a busca..."
+    processo = _processo_scraper
+    if processo is not None and processo.poll() is None:
+        processo.kill()
+    return "cancelando"
+
 
 # ---------------------------------------------------------------------------
 # Persistência na tabela jobs
@@ -184,7 +219,10 @@ def liberar_analise_instagram():
 def iniciar_thread_busca(areas=None):
     """`areas` (opcional) liga o modo mapa: lista de dicts {lat, lng, raio_m, rotulo} -
     o scraper roda uma vez por área, com as flags de geolocalização."""
-    threading.Thread(target=_rodar_busca_em_background, args=(areas,), daemon=True).start()
+    global _thread_busca
+    _cancelar_busca.clear()
+    _thread_busca = threading.Thread(target=_rodar_busca_em_background, args=(areas,), daemon=True)
+    _thread_busca.start()
 
 
 def iniciar_thread_analise_instagram(post_id, post_url, nicho_alvo, arquivo_comentarios=None):
@@ -237,6 +275,7 @@ def rodar_scraper_com_progresso(comando, cwd, env, timeout_segundos, callback_li
     """Roda o scraper igual subprocess.run(), mas lê o stdout linha a linha em tempo
     real (em vez de esperar o processo inteiro terminar), chamando callback_linha
     a cada linha - é isso que alimenta o contador de progresso ao vivo."""
+    global _processo_scraper
     processo = subprocess.Popen(
         comando,
         cwd=cwd,
@@ -255,9 +294,14 @@ def rodar_scraper_com_progresso(comando, cwd, env, timeout_segundos, callback_li
     )
     thread_stderr.start()
 
+    _processo_scraper = processo
     inicio = time.monotonic()
     try:
         for linha in processo.stdout:
+            if _cancelar_busca.is_set():
+                processo.kill()
+                processo.wait(timeout=5)
+                raise BuscaCancelada()
             if time.monotonic() - inicio > timeout_segundos:
                 processo.kill()
                 processo.wait(timeout=5)
@@ -273,9 +317,11 @@ def rodar_scraper_com_progresso(comando, cwd, env, timeout_segundos, callback_li
         processo.wait(timeout=5)
         raise
     finally:
+        _processo_scraper = None
         processo.stdout.close()
         thread_stderr.join(timeout=5)
 
+    _conferir_cancelamento()  # o cancelamento pode ter matado o processo
     return returncode, "".join(stderr_linhas)
 
 
@@ -301,6 +347,7 @@ def _processar_linha_de_progresso_scraper(linha_texto):
 
 
 def _callback_progresso_verificacao(indice, total, nome_empresa):
+    _conferir_cancelamento()
     estado_busca["etapa"] = "verificando_sites"
     estado_busca["mensagem"] = f"Verificando site da empresa {indice} de {total}: {nome_empresa}"
     estado_busca["empresas_processadas"] = indice
@@ -435,6 +482,7 @@ def _capturar_dados_brutos(arquivo_bruto, ambiente, area=None):
             return "Nenhuma busca encontrada. Dispare a busca novamente."
 
         def progresso(indice, total, texto):
+            _conferir_cancelamento()
             estado_busca["mensagem"] = f"Consultando o Google Places... busca {indice} de {total}: {texto}"
 
         try:
@@ -514,11 +562,13 @@ def _rodar_busca_em_background(areas=None):
     estado_busca["area_atual"] = 0
     estado_busca["total_areas"] = len(areas) if areas else 0
     logger.info("busca iniciada (modo %s)", "mapa" if areas else "texto")
-    _job_id_busca = _registrar_inicio_job("busca_maps")
-    _atualizar_job(_job_id_busca, etapa="scraping", mensagem="Buscando no Google Maps...")
     status_final = "erro"
 
     try:
+        # dentro do try: se o banco estiver ocupado aqui, a busca falha mas a
+        # marcação "rodando" é liberada no finally (antes ela ficava presa)
+        _job_id_busca = _registrar_inicio_job("busca_maps")
+        _atualizar_job(_job_id_busca, etapa="scraping", mensagem="Buscando no Google Maps...")
         db.fazer_backup_banco()
 
         data = datetime.now().strftime("%Y-%m-%d_%H%M%S")
@@ -582,10 +632,15 @@ def _rodar_busca_em_background(areas=None):
         status_final = "concluido"
         logger.info("busca concluída: %s", contagens)
 
+    except BuscaCancelada:
+        logger.info("busca cancelada pelo usuário")
+        estado_busca["mensagem"] = "Busca cancelada. Os leads já gravados continuam na lista."
+        status_final = "interrompido"
     except Exception:
         logger.exception("erro inesperado durante a busca")
         estado_busca["mensagem"] = "Ocorreu um erro inesperado. Veja detalhes em logs/prospeccao.log."
     finally:
+        _cancelar_busca.clear()
         estado_busca["rodando"] = False
         estado_busca["etapa"] = ""
         estado_busca["area_atual"] = 0
@@ -620,9 +675,14 @@ def _rodar_analise_instagram_em_background(post_id, post_url, nicho_alvo=None, a
     estado_instagram["perfis_processados"] = 0
     estado_instagram["post_id"] = post_id
     logger.info("análise do Instagram iniciada para post_id=%s (retomada=%s)", post_id, retomada)
-    _job_id_instagram = _registrar_inicio_job("analise_instagram", referencia_id=post_id)
-    _atualizar_job(_job_id_instagram, etapa="raspando", mensagem=estado_instagram["mensagem"])
     status_final = "erro"
+    try:
+        _job_id_instagram = _registrar_inicio_job("analise_instagram", referencia_id=post_id)
+    except Exception:
+        # banco ocupado: segue sem o registro no histórico em vez de morrer com a flag presa
+        logger.exception("não foi possível registrar o job da análise do Instagram")
+        _job_id_instagram = None
+    _atualizar_job(_job_id_instagram, etapa="raspando", mensagem=estado_instagram["mensagem"])
 
     def marcar_erro(mensagem):
         estado_instagram["mensagem"] = mensagem

@@ -39,6 +39,10 @@ iniciar.bat
 copy .env.example .env   &&   docker compose up -d
 ```
 
+User data (`leads.db`, backups, logs, Instagram session) lives in `%LOCALAPPDATA%\SeriaxOS`, not in the repo. `iniciar.bat` sets `PROSPECCAO_DIR_DADOS`, which `paths.py` reads, because the repo sits inside OneDrive and OneDrive locks `leads.db` while syncing, causing random "database is locked" errors. On the first start with that variable, `paths.migrar_dados_da_pasta_antiga` copies the old data over and renames `backend/leads.db` to `leads.db-antigo`. Without the variable (tests, plain `app.py`), the data stays in `backend/`. The app log is `%LOCALAPPDATA%\SeriaxOS\logs\prospeccao.log`.
+
+Maps searches can be cancelled with `POST /api/buscar/cancelar`. `jobs.cancelar_busca` sets an event that progress callbacks check (`BuscaCancelada`) and kills the scraper process. A "ghost" search, whose flag is on but whose thread is dead, is reset directly.
+
 `app.py` calls `truststore.inject_into_ssl()` before anything else, so Python trusts the Windows certificate store. Kaspersky on this machine intercepts HTTPS with its own root CA; without truststore, `requests` calls fail at random with "self-signed certificate in certificate chain". Verification stays on. Note that api.telegram.org is blocked on this network at the TCP level, which truststore cannot fix.
 
 Instagram login is broken upstream as of 2026-10. Instagram answers `needs_upgrade` to every instagrapi version, including 3.2.2 / app 449 (instagrapi issues #2807 and #2881). The fix is to bump `instagrapi` in `requirements.txt` once a release fixes it. `rotas_instagram.traduzir_erro_login_instagram` logs `error_type`/`message` from `last_json` (never the password).

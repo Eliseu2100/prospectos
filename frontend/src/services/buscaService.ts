@@ -10,6 +10,11 @@ export const buscaService = {
 
   consultarStatus: () => httpClient.get<EstadoBusca>("/api/buscar/status"),
 
+  cancelar: () =>
+    httpClient.post<{ ok: true; resultado: "nada" | "destravada" | "cancelando"; mensagem: string }>(
+      "/api/buscar/cancelar"
+    ),
+
   historico: () =>
     httpClient.get<{ buscas: BuscaHistorico[] }>("/api/buscar/historico"),
 }
