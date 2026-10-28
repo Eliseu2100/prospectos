@@ -466,3 +466,71 @@ class TestAvisoDeResposta:
         self._lead_com_resposta(conversas, minutos_atras=2, piloto_status="automatico")
         cliente.post("/api/envio/whatsapp/sincronizar")
         assert avisos == []  # o piloto responde; só avisa se passar pra você
+
+
+# ---------------------------------------------------------------------------
+# "Testar tudo" (diagnostico_sistema.py)
+# ---------------------------------------------------------------------------
+
+import diagnostico_sistema
+
+
+class TestTestarTudo:
+    @pytest.fixture
+    def evolution_ok(self, monkeypatch, evolution_configurada):
+        enviados = []
+        monkeypatch.setattr(diagnostico_sistema.time, "sleep", lambda s: None)
+        monkeypatch.setattr(mensageiros, "estado_whatsapp", lambda: "open")
+        monkeypatch.setattr(mensageiros, "numero_conectado", lambda: "5511912345678")
+
+        def enviar(numero, texto):
+            enviados.append((numero, texto))
+            return "TESTE1", "5511912345678@s.whatsapp.net"
+
+        monkeypatch.setattr(mensageiros, "enviar_whatsapp", enviar)
+        monkeypatch.setattr(mensageiros, "buscar_mensagens",
+                            lambda jid, limite=100: [{"key": {"id": "TESTE1", "fromMe": True}}])
+        return enviados
+
+    def test_tudo_funcionando(self, cliente, evolution_ok, monkeypatch):
+        db.salvar_config("telegram_bot_token", "123:abc")
+        db.salvar_config("telegram_chat_id", "999")
+        db.salvar_config("gemini", "g")
+        monkeypatch.setattr(mensageiros, "enviar_telegram", lambda texto, chat_id=None: None)
+
+        corpo = cliente.post("/api/envio/testar-tudo").get_json()
+        assert corpo["ok"] is True
+        assert [i["nome"] for i in corpo["itens"]] == [
+            "WhatsApp conectado", "Envio pelo CRM", "Leitura das conversas", "Telegram", "Inteligência artificial"]
+        # mensagem de teste vai pro PRÓPRIO número, sem lead e sem histórico
+        assert evolution_ok[0][0] == "5511912345678"
+        conexao = db.conectar()
+        try:
+            assert conexao.execute("SELECT COUNT(*) FROM mensagens_conversa").fetchone()[0] == 0
+        finally:
+            conexao.close()
+
+    def test_telegram_bloqueado_aparece_com_o_motivo(self, cliente, evolution_ok, monkeypatch):
+        db.salvar_config("telegram_bot_token", "123:abc")
+        db.salvar_config("telegram_chat_id", "999")
+
+        def bloqueado(texto, chat_id=None):
+            raise mensageiros.ErroEnvio("Seu computador não consegue alcançar o servidor do Telegram")
+
+        monkeypatch.setattr(mensageiros, "enviar_telegram", bloqueado)
+        corpo = cliente.post("/api/envio/testar-tudo").get_json()
+        telegram = next(i for i in corpo["itens"] if i["nome"] == "Telegram")
+        assert corpo["ok"] is False and telegram["ok"] is False
+        assert "alcançar" in telegram["detalhe"]
+
+    def test_whatsapp_desconectado_para_cedo(self, cliente, evolution_configurada, monkeypatch):
+        monkeypatch.setattr(mensageiros, "estado_whatsapp", lambda: "close")
+        corpo = cliente.post("/api/envio/testar-tudo").get_json()
+        assert corpo["itens"][0]["ok"] is False
+        assert "QR code" in corpo["itens"][0]["detalhe"]
+
+    def test_mensagem_nao_volta_na_leitura(self, cliente, evolution_ok, monkeypatch):
+        monkeypatch.setattr(mensageiros, "buscar_mensagens", lambda jid, limite=100: [])
+        corpo = cliente.post("/api/envio/testar-tudo").get_json()
+        leitura = next(i for i in corpo["itens"] if i["nome"] == "Leitura das conversas")
+        assert leitura["ok"] is False

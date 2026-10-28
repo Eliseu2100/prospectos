@@ -164,6 +164,13 @@ def _telegram(metodo_api, corpo=None):
         resposta = requests.post(f"{URL_API_TELEGRAM}/bot{token}/{metodo_api}", json=corpo or {},
                                  timeout=TIMEOUT_HTTP_SEGUNDOS)
         dados = resposta.json()
+    except (requests.ConnectionError, requests.Timeout) as erro:
+        # a internet funciona, mas o servidor do bot não responde: na prática é
+        # bloqueio de rede (operadora, roteador, antivírus/firewall)
+        raise ErroEnvio(
+            "Seu computador não consegue alcançar o servidor do Telegram (api.telegram.org). "
+            "Costuma ser bloqueio da rede, do roteador ou do antivírus/firewall."
+        ) from erro
     except (requests.RequestException, ValueError) as erro:
         raise ErroEnvio("Não consegui falar com o Telegram. Confira sua internet.") from erro
     if not dados.get("ok"):

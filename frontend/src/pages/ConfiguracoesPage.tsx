@@ -6,6 +6,7 @@ import { AvisosCard } from "@/components/configuracoes/AvisosCard"
 import { FonteMapsCard } from "@/components/configuracoes/FonteMapsCard"
 import { GeminiModeloCard } from "@/components/configuracoes/GeminiModeloCard"
 import { TelegramCard } from "@/components/configuracoes/TelegramCard"
+import { TestarTudoCard } from "@/components/configuracoes/TestarTudoCard"
 import { WhatsappEnvioCard } from "@/components/configuracoes/WhatsappEnvioCard"
 import { InstagramContaCard } from "@/components/configuracoes/InstagramContaCard"
 import { PerfilVendedorCard } from "@/components/configuracoes/PerfilVendedorCard"
@@ -97,6 +98,7 @@ export function ConfiguracoesPage() {
           </p>
         </div>
 
+        <TestarTudoCard />
         <WhatsappEnvioCard />
         <AvisosCard />
         <TelegramCard />

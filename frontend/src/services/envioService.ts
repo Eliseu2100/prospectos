@@ -98,6 +98,11 @@ export const envioService = {
       { whatsapp_numero: whatsappNumero }
     ),
 
+  testarTudo: () =>
+    httpClient.post<{ ok: boolean; itens: { nome: string; ok: boolean; detalhe: string }[] }>(
+      "/api/envio/testar-tudo"
+    ),
+
   testarAviso: () => httpClient.post<{ ok: true; canais: string[] }>("/api/envio/aviso/teste"),
 
   detectarChatTelegram: () =>

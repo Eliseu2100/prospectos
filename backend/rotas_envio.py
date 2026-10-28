@@ -161,6 +161,15 @@ def testar_aviso():
     return jsonify({"ok": True, "canais": canais})
 
 
+@bp.route("/api/envio/testar-tudo", methods=["POST"])
+def testar_tudo():
+    """Verificação real das integrações (envia mensagem de teste pro próprio número
+    e pro Telegram). Ver diagnostico_sistema.py."""
+    import diagnostico_sistema
+
+    return jsonify(diagnostico_sistema.rodar())
+
+
 @bp.route("/api/envio/config/gemini-modelo", methods=["POST"])
 def salvar_modelo_gemini():
     modelo = str((request.json or {}).get("modelo", "")).strip()
