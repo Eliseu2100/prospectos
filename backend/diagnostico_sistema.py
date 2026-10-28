@@ -70,7 +70,8 @@ def verificar_telegram():
         return _item("Telegram", False, "Bot não configurado (cole o token do @BotFather em Configurações).")
     if not db.obter_config("telegram_chat_id"):
         try:
-            mensageiros.descobrir_chat_telegram()
+            chat_id, _nome = mensageiros.descobrir_chat_telegram()
+            db.salvar_config("telegram_chat_id", chat_id)
         except mensageiros.ErroEnvio as erro:
             return _item("Telegram", False, str(erro))
     try:
