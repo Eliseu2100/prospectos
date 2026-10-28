@@ -468,3 +468,7 @@ class TestErroLoginInstagram:
 
     def test_desconhecido_mostra_mensagem_do_instagram(self):
         assert "algo novo" in self.traduzir("", "algo novo")
+
+    def test_versao_do_app_desatualizada(self):
+        texto = self.traduzir("needs_upgrade", "Your version of Instagram is out of date.")
+        assert "instagrapi" in texto and "senha" in texto

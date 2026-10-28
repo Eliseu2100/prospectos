@@ -41,6 +41,8 @@ copy .env.example .env   &&   docker compose up -d
 
 `app.py` calls `truststore.inject_into_ssl()` before anything else, so Python trusts the Windows certificate store. Kaspersky on this machine intercepts HTTPS with its own root CA; without truststore, `requests` calls fail at random with "self-signed certificate in certificate chain". Verification stays on. Note that api.telegram.org is blocked on this network at the TCP level, which truststore cannot fix.
 
+Instagram login is broken upstream as of 2026-10. Instagram answers `needs_upgrade` to every instagrapi version, including 3.2.2 / app 449 (instagrapi issues #2807 and #2881). The fix is to bump `instagrapi` in `requirements.txt` once a release fixes it. `rotas_instagram.traduzir_erro_login_instagram` logs `error_type`/`message` from `last_json` (never the password).
+
 `google-maps-scraper.exe` (from gosom/google-maps-scraper) is not committed. It must sit next to `backend/app.py` for the scraper source of the Google Maps channel. The official Places API is the alternative source.
 
 ## Architecture

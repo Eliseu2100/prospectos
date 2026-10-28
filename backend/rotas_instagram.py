@@ -880,6 +880,14 @@ def traduzir_erro_login_instagram(tipo, mensagem, erro, usuario):
 
 
 def _explicar_erro_login_instagram(texto, mensagem, erro):
+    # out/2026: o Instagram recusa o login de todas as versões do instagrapi
+    # (issues #2807 e #2881 do projeto, ainda abertos). Quando sair correção:
+    # atualizar instagrapi no requirements.txt e reiniciar o backend.
+    if "needs_upgrade" in texto or "needsupgrade" in texto or "out of date" in texto:
+        return ("O Instagram está recusando o tipo de login que o Seriax OS usa (\"versão do app "
+                "desatualizada\"). É um problema conhecido da biblioteca instagrapi, que afeta todo mundo "
+                "e ainda não tem correção. Não é a sua senha nem a sua rede. Assim que sair uma versão "
+                "corrigida da biblioteca, o login volta a funcionar. O canal Google Maps segue normal.")
     if "bad_password" in texto or "password you entered is incorrect" in texto:
         return ("O Instagram disse que a senha está incorreta. Se a senha está certa, ele pode estar "
                 "bloqueando login fora do app: abra o Instagram no celular, veja se pediu para confirmar "
