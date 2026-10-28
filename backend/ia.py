@@ -296,35 +296,36 @@ def ajustar_saudacao(texto):
     )
 
 
+# Fechamentos da PRIMEIRA mensagem: perguntas leves de interesse. Nada de prévia
+# pronta nem horário marcado - o fluxo do vendedor é: o lead demonstra interesse,
+# pede pra ver, e aí se combina a prévia para o dia seguinte (ver piloto).
 PERGUNTAS_DE_FECHAMENTO = [
-    "Quer que eu te mostre um exemplo rápido?",
-    "Faz sentido eu te mandar uma prévia?",
-    "Posso te enviar uma ideia de como ficaria?",
-    "Quer ver como ficaria o seu?",
-    "Posso te mandar um diagnóstico rápido, sem compromisso?",
+    "Vocês já pensaram em ter um site próprio?",
+    "Hoje chega cliente novo pra vocês pelo Google?",
+    "Teria interesse em ver como ficaria um site pra vocês?",
+    "Posso te explicar rapidinho como funcionaria?",
+    "Isso é algo que vocês gostariam de resolver?",
 ]
 
-HORARIOS_COMERCIAIS = ["9h", "9h30", "10h", "10h40", "11h", "14h", "14h30", "15h20", "16h", "17h"]
-NOMES_DIAS_UTEIS = ["segunda", "terça", "quarta", "quinta", "sexta"]
+DIAS_DA_SEMANA = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira",
+                  "sábado", "domingo"]
 
 
 def sortear_fechamento():
-    """Decide AQUI (não no modelo) como a mensagem termina: metade das vezes uma
-    pergunta de sim/não, metade uma proposta de horário concreto - com dia útil e
-    hora reais gerados agora. Pedir pro LLM 'sortear' faz ele repetir sempre o
-    mesmo fechamento e inventar horários fixos."""
-    if random.random() < 0.5:
-        pergunta = random.choice(PERGUNTAS_DE_FECHAMENTO)
-        return (
-            f'Encerre com esta pergunta de sim/não (adapte só o necessário para fluir no texto): "{pergunta}"'
-        )
+    """Decide AQUI (não no modelo) como a mensagem termina - LLM "sorteando"
+    colapsa sempre pro mesmo fechamento."""
+    pergunta = random.choice(PERGUNTAS_DE_FECHAMENTO)
+    return f'Encerre com esta pergunta curta (adapte só o necessário para fluir no texto): "{pergunta}"'
 
-    data_alvo = date.today() + timedelta(days=random.randint(1, 3))
-    while data_alvo.weekday() >= 5:
-        data_alvo += timedelta(days=1)
-    dia = NOMES_DIAS_UTEIS[data_alvo.weekday()]
-    hora = random.choice(HORARIOS_COMERCIAIS)
-    return f"Encerre propondo um horário concreto para uma conversa rápida: {dia} às {hora}."
+
+def proximo_dia_util(hoje=None):
+    """(data, como dizer) do próximo dia útil - 'amanhã' ou o nome do dia."""
+    hoje = hoje or date.today()
+    alvo = hoje + timedelta(days=1)
+    while alvo.weekday() >= 5:
+        alvo += timedelta(days=1)
+    falado = "amanhã" if (alvo - hoje).days == 1 else f"na {DIAS_DA_SEMANA[alvo.weekday()]}"
+    return alvo, falado
 
 
 def _bloco_perfil_vendedor():
@@ -834,25 +835,26 @@ def analisar_conversa_com_fallback(lead, mensagens):
 # Piloto automático: decidir e escrever a resposta ao lead
 # ---------------------------------------------------------------------------
 
-ACOES_PILOTO = {"responder", "passar_para_humano", "encerrar"}
+ACOES_PILOTO = {"responder", "combinar_previa", "passar_para_humano", "encerrar"}
 
 SYSTEM_PILOTO_RESPOSTA = """Você conduz, em nome de um freelancer que cria sites, conversas de prospecção por WhatsApp com donos de pequenos negócios locais no Brasil. Você lê a conversa e decide o que fazer com a ÚLTIMA mensagem do lead.
 
 Responda SEMPRE um único objeto JSON válido, sem markdown, com EXATAMENTE estas chaves:
-- "acao": "responder", "passar_para_humano" ou "encerrar".
+- "acao": "responder", "combinar_previa", "passar_para_humano" ou "encerrar".
 - "motivo": uma frase curta explicando a decisão (vai para o painel do vendedor).
-- "resposta": o texto a enviar ao lead. Obrigatório em "responder" e "encerrar"; string vazia em "passar_para_humano".
+- "resposta": o texto a enviar ao lead. Obrigatório em "responder", "combinar_previa" e "encerrar"; string vazia em "passar_para_humano".
 
 Quando usar cada ação:
 - "responder": o lead fez pergunta simples ou demonstrou curiosidade (quem é você, o que é, como funciona, prazo, o que está incluso, formas de pagamento, se é presencial, objeções como "já tenho Instagram"). Responda com base APENAS nas informações da oferta fornecidas. O objetivo é avançar um passo: entender a necessidade dele ou combinar de mostrar uma prévia/conversar.
+- "combinar_previa": o lead demonstrou interesse e quer VER como ficaria o site dele (aceitou ver uma prévia/ideia/exemplo do site dele, ou pediu isso). O vendedor monta a prévia à noite e envia no dia útil seguinte - nunca na hora. A resposta: confirma com entusiasmo contido que vai preparar uma prévia do site DELE e enviar no dia indicado no contexto (use exatamente essa expressão de dia), e faz UMA pergunta curta para personalizar (ex.: quais serviços quer destacar, se tem logo/fotos ou cores preferidas). Não fale de preço nesta mensagem se ele não perguntou.
 - PREÇO: se o lead perguntar quanto custa e houver valor nas informações da oferta, RESPONDA com esse valor exatamente como está escrito (ex.: "a partir de R$ X"), diga em uma frase o que está incluso e termine com uma pergunta curta que ajude a entender o que ele precisa. Só passe para o humano se não houver valor escrito, se ele pedir orçamento de algo fora do que está descrito, ou se pedir desconto/negociar.
-- "passar_para_humano": o lead quer fechar ou contratar, negocia valor ou pede desconto, quer marcar reunião/ligação, pede portfólio/exemplos/link/arquivo que não está nas informações da oferta, mandou áudio/imagem/documento que você não consegue ler, fez pergunta técnica ou fora do escopo, está irritado, ou você não tem certeza do que responder. Na dúvida, passe para o humano.
+- "passar_para_humano": o lead quer fechar ou contratar, negocia valor ou pede desconto, quer marcar reunião/ligação, pede portfólio/exemplos de OUTROS clientes, link ou arquivo que não está nas informações da oferta, mandou áudio/imagem/documento que você não consegue ler, fez pergunta técnica ou fora do escopo, está irritado, ou você não tem certeza do que responder. Na dúvida, passe para o humano.
 - "encerrar": o lead disse claramente que não tem interesse, pediu para parar, demonstrou irritação com o contato, ou disse que é engano. A resposta deve ser UMA frase curta e educada de despedida, sem insistir e sem oferecer nada. Se ele só perguntar, sem irritação, como você conseguiu o contato, isso NÃO é encerrar: responda com transparência que o número está no perfil público da empresa no Google Maps e siga a conversa com leveza.
 
 Regras da resposta:
 - Primeira pessoa do singular, tom humano, curto e natural, espelhando o tamanho e a formalidade do lead. Uma pergunta por mensagem no máximo.
 - Nunca invente preço, prazo, garantia, cliente, resultado ou dado que não esteja nas informações fornecidas.
-- Nunca prometa enviar algo depois (link, exemplo, portfólio, proposta, arquivo, "vou te mandar"): quem vai mandar é o vendedor, e você não tem esses materiais. Se o lead precisa de algo assim, use "passar_para_humano". Se houver um link nas informações da oferta, você pode enviá-lo direto na resposta.
+- A única coisa que você pode prometer enviar depois é a prévia do site DELE, e só pela ação "combinar_previa", sempre para o dia indicado (nunca "agora", "já", "daqui a pouco"). Qualquer outra promessa de envio (link, portfólio, proposta, contrato, arquivo) é "passar_para_humano", porque você não tem esses materiais. Se houver um link nas informações da oferta, você pode enviá-lo direto na resposta.
 - Nunca diga que é uma IA, um robô ou uma mensagem automática, e nunca prometa algo que só o vendedor pode decidir.
 - Sem saudação repetida se a conversa já está em andamento. Sem emojis em excesso."""
 
@@ -879,6 +881,7 @@ Conversa até agora (ordem cronológica):
 {_bloco_historico_conversa(mensagens)}
 
 Saudação correta para a hora de agora, caso precise saudar: {saudacao_por_horario()}
+Se combinar prévia, o dia de entrega é: {proximo_dia_util()[1]}
 
 Decida a ação para a última mensagem do lead e responda com o JSON especificado."""
 
@@ -890,7 +893,7 @@ def _parsear_decisao_piloto(resposta_bruta):
     if acao not in ACOES_PILOTO:
         acao = "passar_para_humano"  # resposta fora do contrato: na dúvida, humano
     resposta = str(dados.get("resposta", "")).strip()[:MAX_CARACTERES_RESPOSTA_SUGERIDA]
-    if acao in ("responder", "encerrar") and not resposta:
+    if acao in ("responder", "combinar_previa", "encerrar") and not resposta:
         acao, resposta = "passar_para_humano", ""
     return {
         "acao": acao,

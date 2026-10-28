@@ -8,11 +8,13 @@ Proteções (o número do vendedor é o ativo mais caro aqui):
 - respeita o limite diário de envios do WhatsApp (o mesmo do envio manual);
 - lead que pede pra parar recebe uma despedida curta e nunca mais é contatado;
 - no máximo `piloto_max_respostas` respostas automáticas seguidas por lead;
-- preço não informado, fechamento, áudio, irritação ou dúvida -> passa pra você.
+- preço não informado, fechamento, áudio, irritação ou dúvida -> passa pra você;
+- lead quer ver como ficaria -> o piloto combina a prévia para o próximo dia útil,
+  cria a tarefa (follow-up + tag "prévia") e passa a conversa pra você montar o site.
 
 Estado da conversa em `leads.piloto_status`:
   'automatico'   - o piloto conduz (só esses recebem resposta automática)
-  'humano'       - você assumiu (o piloto não responde mais)
+  'humano'       - você assumiu, ou o piloto combinou a prévia e passou pra você
   'encerrado'    - o lead pediu pra parar
   'sem_whatsapp' - o número não tem WhatsApp
 """
@@ -257,6 +259,25 @@ def _passar_para_humano(conexao, lead, motivo):
     _avisar_telegram(f"🙋 {lead['nome']} precisa de você no WhatsApp.\nMotivo: {motivo}")
 
 
+def combinar_previa(conexao, lead, resposta):
+    """Prévia combinada: vira tarefa do vendedor para o próximo dia útil e a
+    conversa sai do piloto (quem envia a prévia e negocia é você)."""
+    data_entrega, falado = ia.proximo_dia_util()
+    tags = [t.strip() for t in (lead.get("tags") or "").split(",") if t.strip()]
+    if "prévia" not in tags:
+        tags.append("prévia")
+    conexao.execute(
+        "UPDATE leads SET piloto_status = 'humano', tags = ?, proximo_followup = ?, atualizado_em = ? "
+        "WHERE place_id = ?",
+        (", ".join(tags), data_entrega.isoformat(), datetime.now().isoformat(timespec="seconds"),
+         lead["place_id"]),
+    )
+    registrar_evento(conexao, "previa_combinada", lead["place_id"], lead["nome"],
+                     f"Entregar {falado} ({data_entrega.strftime('%d/%m')}). Mensagem: {resposta}")
+    _avisar_telegram(f"🎨 Prévia combinada com {lead['nome']} para {falado} "
+                     f"({data_entrega.strftime('%d/%m')}). Bora montar o site!")
+
+
 def responder_lead(lead, cfg):
     """Decide e executa a resposta para um lead. Retorna a ação tomada."""
     from rotas_envio import enviar_e_registrar
@@ -286,7 +307,9 @@ def responder_lead(lead, cfg):
 
     conexao = db.conectar()
     try:
-        if decisao["acao"] == "encerrar":
+        if decisao["acao"] == "combinar_previa":
+            combinar_previa(conexao, lead, decisao["resposta"])
+        elif decisao["acao"] == "encerrar":
             agora = datetime.now().isoformat(timespec="seconds")
             conexao.execute(
                 "UPDATE leads SET piloto_status = 'encerrado', status = 'recusou', proximo_followup = NULL, "

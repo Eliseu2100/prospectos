@@ -263,6 +263,23 @@ class TestRespostas:
         assert whatsapp.enviados == []
         assert lead("a")["piloto_status"] == "humano"
 
+    def test_combinar_previa_vira_tarefa_e_passa_para_voce(self, whatsapp, ia_falsa, monkeypatch, cliente):
+        from datetime import date
+        monkeypatch.setattr(ia, "proximo_dia_util", lambda hoje=None: (date(2026, 10, 27), "amanhã"))
+        ia_falsa["decisao"] = {"acao": "combinar_previa", "motivo": "Quer ver",
+                               "resposta": "Combinado! Amanhã te mando a prévia. Tem logo?"}
+        preparar_conversa_respondida(whatsapp, "Quero ver como ficaria sim")
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+
+        assert whatsapp.enviados == [("65996757327", "Combinado! Amanhã te mando a prévia. Tem logo?")]
+        a = lead("a")
+        assert a["piloto_status"] == "humano"
+        assert "prévia" in a["tags"]
+        assert a["proximo_followup"] == "2026-10-27"
+        painel = cliente.get("/api/piloto").get_json()
+        assert [p["nome"] for p in painel["previas"]] == ["Clínica A"]
+        assert painel["eventos"][0]["tipo"] == "previa_combinada"
+
     def test_limite_de_respostas_seguidas(self, whatsapp, ia_falsa):
         preparar_conversa_respondida(whatsapp, "E aí?")
         conexao = db.conectar()

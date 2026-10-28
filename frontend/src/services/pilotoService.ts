@@ -29,6 +29,7 @@ export interface LeadFila {
 export type TipoEventoPiloto =
   | "contato_enviado"
   | "resposta_enviada"
+  | "previa_combinada"
   | "passou_para_voce"
   | "encerrado"
   | "sem_whatsapp"
@@ -67,6 +68,13 @@ export interface PainelPiloto {
     ultimo_texto: string
     ultima_em: string
     motivo: string | null
+  }[]
+  previas: {
+    place_id: string
+    nome: string
+    entregar_em: string | null
+    status: string
+    detalhe: string | null
   }[]
   eventos: EventoPiloto[]
   areas: { nichos: string[]; cidades: string[] }

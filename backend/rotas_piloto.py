@@ -67,6 +67,16 @@ def painel_piloto():
             ORDER BY m.enviada_em DESC
             """
         ).fetchall()]
+        previas = [dict(l) for l in conexao.execute(
+            """
+            SELECT l.place_id, l.nome, l.proximo_followup AS entregar_em, l.status,
+                   (SELECT detalhe FROM piloto_eventos e WHERE e.place_id = l.place_id
+                     AND e.tipo = 'previa_combinada' ORDER BY e.id DESC LIMIT 1) AS detalhe
+            FROM leads l
+            WHERE l.tags LIKE '%prévia%' AND l.status NOT IN ('fechou', 'recusou', 'ignorado')
+            ORDER BY COALESCE(l.proximo_followup, '9999')
+            """
+        ).fetchall()]
         eventos = [dict(l) for l in conexao.execute(
             "SELECT id, em, tipo, place_id, nome, detalhe FROM piloto_eventos ORDER BY id DESC LIMIT 40"
         ).fetchall()]
@@ -96,6 +106,7 @@ def painel_piloto():
             "sem_whatsapp": contagem.get("sem_whatsapp", 0),
         },
         "precisa_de_voce": precisa_de_voce,
+        "previas": previas,
         "eventos": eventos,
         "areas": {"nichos": nichos, "cidades": cidades},
     })

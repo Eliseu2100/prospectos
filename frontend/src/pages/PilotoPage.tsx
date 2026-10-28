@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Hand,
+  Palette,
   MessageCircle,
   Pause,
   Play,
@@ -38,6 +39,7 @@ import type { ConfigPiloto, EventoPiloto, PainelPiloto } from "@/services/piloto
 const ICONE_EVENTO: Record<EventoPiloto["tipo"], { icone: React.ReactNode; rotulo: string; cor: string }> = {
   contato_enviado: { icone: <Send className="size-3.5" />, rotulo: "Primeiro contato enviado", cor: "text-primary" },
   resposta_enviada: { icone: <Reply className="size-3.5" />, rotulo: "Respondeu automaticamente", cor: "text-primary" },
+  previa_combinada: { icone: <Palette className="size-3.5" />, rotulo: "Prévia combinada", cor: "text-success" },
   passou_para_voce: { icone: <Hand className="size-3.5" />, rotulo: "Passou a conversa para você", cor: "text-warning" },
   encerrado: { icone: <Ban className="size-3.5" />, rotulo: "Lead pediu para parar", cor: "text-muted-foreground" },
   sem_whatsapp: { icone: <Ban className="size-3.5" />, rotulo: "Número sem WhatsApp", cor: "text-muted-foreground" },
@@ -245,6 +247,55 @@ function PrecisaDeVoce({ dados }: { dados: PainelPiloto }) {
   )
 }
 
+function formatarEntrega(data: string | null) {
+  if (!data) return "sem data"
+  const alvo = new Date(`${data.slice(0, 10)}T00:00:00`)
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  const dias = Math.round((alvo.getTime() - hoje.getTime()) / 86_400_000)
+  if (dias < 0) return `atrasada (${alvo.toLocaleDateString("pt-BR")})`
+  if (dias === 0) return "entregar hoje"
+  if (dias === 1) return "entregar amanhã"
+  return `entregar ${alvo.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" })}`
+}
+
+function Previas({ dados }: { dados: PainelPiloto }) {
+  if (!dados.previas.length) return null
+  return (
+    <section className="rounded-[28px] bg-card p-6 ring-2 ring-success/35 sm:p-8">
+      <h3 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <Palette className="size-5 text-success" />
+        Prévias para fazer ({dados.previas.length})
+      </h3>
+      <p className="mt-1 text-[15px] text-muted-foreground">
+        Clientes que quiseram ver como ficaria o site. O piloto combinou a entrega para o próximo dia útil:
+        monte a prévia e envie pela conversa.
+      </p>
+      <ul className="mt-4 space-y-2">
+        {dados.previas.map((p) => {
+          const atrasada = formatarEntrega(p.entregar_em).startsWith("atrasada")
+          return (
+            <li key={p.place_id} className="flex flex-col gap-3 rounded-2xl bg-muted/60 p-4 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">{p.nome}</p>
+                <p className={cn("text-sm", atrasada ? "font-medium text-destructive" : "text-muted-foreground")}>
+                  {formatarEntrega(p.entregar_em)}
+                </p>
+              </div>
+              <Button size="sm" asChild>
+                <Link to={`/conversas/${encodeURIComponent(p.place_id)}`}>
+                  <MessageCircle className="size-3.5" />
+                  Abrir conversa
+                </Link>
+              </Button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
 function Formulario({ dados }: { dados: PainelPiloto }) {
   const salvar = useSalvarConfigPiloto()
   const { dispararBusca, statusBusca } = useBusca()
@@ -368,7 +419,7 @@ function Formulario({ dados }: { dados: PainelPiloto }) {
       <Secao
         numero={3}
         titulo="Respostas automáticas"
-        descricao="Quando o cliente responde, a IA tira as dúvidas simples. Preço, fechamento e qualquer dúvida ela passa para você, e avisa no Telegram."
+        descricao="Quando o cliente responde, a IA tira as dúvidas simples. Se ele quiser ver como ficaria, ela combina a prévia para o próximo dia útil e cria a tarefa para você. Fechamento, desconto e qualquer dúvida ela passa para você, e avisa no Telegram."
       >
         <label className="flex items-center gap-3 text-[15px]">
           <Switch
@@ -479,6 +530,7 @@ export function PilotoPage() {
           <>
             <Painel dados={data} />
             <PrecisaDeVoce dados={data} />
+            <Previas dados={data} />
             <Formulario dados={data} />
             <Atividade eventos={data.eventos} />
           </>

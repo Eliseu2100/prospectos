@@ -242,23 +242,17 @@ class TestSystemPrompt:
 
 
 class TestSorteioDeFechamento:
-    def test_pergunta_de_sim_nao(self, monkeypatch):
-        monkeypatch.setattr(ia.random, "random", lambda: 0.1)  # < 0.5 → pergunta
+    def test_pergunta_leve_sem_horario_nem_previa_pronta(self, monkeypatch):
         monkeypatch.setattr(ia.random, "choice", lambda opcoes: opcoes[0])
 
         fechamento = ia.sortear_fechamento()
-        assert "pergunta de sim/não" in fechamento
         assert ia.PERGUNTAS_DE_FECHAMENTO[0] in fechamento
+        assert "horário" not in fechamento
 
-    def test_horario_concreto_em_dia_util(self, monkeypatch):
-        monkeypatch.setattr(ia.random, "random", lambda: 0.9)  # >= 0.5 → horário
-        monkeypatch.setattr(ia.random, "randint", lambda a, b: 1)
-        monkeypatch.setattr(ia.random, "choice", lambda opcoes: opcoes[0])
-
-        fechamento = ia.sortear_fechamento()
-        assert "horário concreto" in fechamento
-        assert any(dia in fechamento for dia in ia.NOMES_DIAS_UTEIS)
-        assert "9h" in fechamento
+    def test_proximo_dia_util(self):
+        from datetime import date
+        assert ia.proximo_dia_util(date(2026, 10, 27)) == (date(2026, 10, 28), "amanhã")  # terça
+        assert ia.proximo_dia_util(date(2026, 10, 30)) == (date(2026, 11, 2), "na segunda-feira")  # sexta
 
     def test_fechamento_sorteado_entra_no_prompt(self, monkeypatch):
         monkeypatch.setattr(ia, "sortear_fechamento", lambda: "FECHAMENTO-SORTEADO")
