@@ -70,7 +70,7 @@ export function ProvedorApiCard({ provedor, titulo, config }: ProvedorApiCardPro
         className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
       >
         <ExternalLink className="size-3" />
-        Obtenha sua chave gratuita aqui
+        {provedor === "claude" ? "Obtenha sua chave aqui (pago, pré-pago)" : "Obtenha sua chave gratuita aqui"}
       </a>
     </div>
   )

@@ -75,3 +75,71 @@ def test_groq_modelo_aposentado_tenta_o_proximo(monkeypatch):
 
     assert ia.groq_gerar_mensagem("s", "u") == "oi"
     assert usados == ia.MODELOS_GROQ[:2]
+
+
+# ---------------------------------------------------------------------------
+# Claude (reserva paga): só entra depois de Gemini e Groq
+# ---------------------------------------------------------------------------
+
+def _anthropic_falso(monkeypatch, capturado, resposta):
+    class Mensagens:
+        def create(self, **kw):
+            capturado.update(kw)
+            return resposta
+
+    cliente = types.SimpleNamespace(messages=Mensagens())
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=lambda **kw: cliente))
+
+
+def _resposta(texto, stop="end_turn"):
+    return types.SimpleNamespace(
+        stop_reason=stop,
+        content=[types.SimpleNamespace(type="thinking", thinking=""), types.SimpleNamespace(type="text", text=texto)],
+    )
+
+
+def test_claude_usa_haiku_sem_temperature(monkeypatch):
+    capturado = {}
+    _anthropic_falso(monkeypatch, capturado, _resposta(" Oi! "))
+    assert ia.claude_gerar_mensagem("sys", "user", temperatura=0.9) == "Oi!"
+    assert capturado["model"] == "claude-haiku-5-5"
+    assert "temperature" not in capturado  # o Haiku 5.5 devolve 400 com temperature
+    assert capturado["output_config"] == {"effort": "medium"}
+
+
+def test_claude_json_usa_effort_baixo_e_reforca_formato(monkeypatch):
+    capturado = {}
+    _anthropic_falso(monkeypatch, capturado, _resposta('{"a": 1}'))
+    ia.claude_gerar_mensagem("sys", "user", formato_json=True)
+    assert capturado["output_config"] == {"effort": "low"}
+    assert "JSON" in capturado["system"]
+
+
+def test_claude_recusa_vira_erro_para_o_fallback(monkeypatch):
+    _anthropic_falso(monkeypatch, {}, _resposta("", stop="refusal"))
+    with pytest.raises(RuntimeError):
+        ia.claude_gerar_mensagem("sys", "user")
+
+
+def test_claude_so_entra_depois_dos_gratuitos(monkeypatch):
+    chamados = []
+
+    def falha(nome):
+        def gerar(*a, **k):
+            chamados.append(nome)
+            raise ErroApi(429, "quota exceeded")
+        return gerar
+
+    def claude(*a, **k):
+        chamados.append("claude")
+        return "resposta do claude"
+
+    monkeypatch.setattr(db, "obter_config", lambda chave, default=None: "chave")
+    monkeypatch.setattr(ia, "_provedores_em_cooldown", {})
+    monkeypatch.setitem(ia.GERADORES, "gemini", falha("gemini"))
+    monkeypatch.setitem(ia.GERADORES, "groq", falha("groq"))
+    monkeypatch.setitem(ia.GERADORES, "claude", claude)
+
+    resultado, provedor, _avisos = ia.executar_com_fallback("s", "u")
+    assert (resultado, provedor) == ("resposta do claude", "claude")
+    assert chamados == ["gemini", "groq", "claude"]

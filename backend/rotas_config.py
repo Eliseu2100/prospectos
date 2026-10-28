@@ -13,6 +13,7 @@ LINKS_OBTER_CHAVE = {
     "gemini": "https://aistudio.google.com/apikey",
     "groq": "https://console.groq.com/keys",
     "nvidia": "https://build.nvidia.com",
+    "claude": "https://console.anthropic.com/settings/keys",
     "pagespeed": "https://developers.google.com/speed/docs/insights/v5/get-started",
     "places": "https://console.cloud.google.com/apis/credentials",
 }

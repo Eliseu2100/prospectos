@@ -28,6 +28,7 @@ CHAVES_CONFIG_VALIDAS = {
     "gemini": "GEMINI_API_KEY",
     "groq": "GROQ_API_KEY",
     "nvidia": "NVIDIA_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
     "pagespeed": "PAGESPEED_API_KEY",
     "places": "PLACES_API_KEY",
 }

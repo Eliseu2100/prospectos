@@ -38,7 +38,9 @@ logger = logging.getLogger(__name__)
 
 # Ordem de preferência dos provedores de IA - se o primeiro falhar/estourar cota,
 # tenta o próximo automaticamente. Cada usuário pode configurar 1, 2 ou os 3.
-ORDEM_PROVEDORES_IA = ["gemini", "groq", "nvidia"]
+# Os dois gratuitos primeiro; o Claude (pago, centavos por dia) só entra quando
+# eles falham ou batem a cota - é a reserva confiável do piloto automático.
+ORDEM_PROVEDORES_IA = ["gemini", "groq", "claude", "nvidia"]
 
 # Timeout por chamada de IA. Sem ele, um provedor que pendura a conexão travaria
 # a geração pra sempre e o fallback nunca chegaria ao próximo provedor.
@@ -47,6 +49,7 @@ IA_TIMEOUT_SEGUNDOS = 45
 NOMES_AMIGAVEIS_PROVEDOR = {
     "gemini": "Google Gemini",
     "groq": "Groq",
+    "claude": "Claude (Anthropic)",
     "nvidia": "NVIDIA Build",
 }
 
@@ -222,9 +225,39 @@ def nvidia_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_js
     return resposta.choices[0].message.content.strip()
 
 
+# Claude Haiku 5.5: o mais barato da Anthropic (US$ 0,10 / 0,50 por milhão de tokens)
+MODELO_CLAUDE = "claude-haiku-5-5"
+
+
+def claude_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False):
+    """`temperatura` é ignorada de propósito: o Haiku 5.5 rejeita parâmetros de
+    amostragem (400). Quem controla custo/profundidade é o `effort` - baixo pra
+    JSON/classificação, médio (o padrão do modelo) pra copy."""
+    import anthropic
+
+    chave = db.obter_config("claude")
+    cliente = anthropic.Anthropic(api_key=chave, timeout=IA_TIMEOUT_SEGUNDOS, max_retries=1)
+    if formato_json:
+        system += "\n\nResponda APENAS com o objeto JSON, sem markdown e sem texto antes ou depois."
+    resposta = cliente.messages.create(
+        model=MODELO_CLAUDE,
+        max_tokens=4000,
+        system=system,
+        messages=[{"role": "user", "content": user}],
+        output_config={"effort": "low" if formato_json else "medium"},
+    )
+    if resposta.stop_reason == "refusal":
+        raise RuntimeError("o Claude recusou esta solicitação")
+    texto = "".join(bloco.text for bloco in resposta.content if bloco.type == "text").strip()
+    if not texto:
+        raise RuntimeError("o Claude não devolveu texto")
+    return texto
+
+
 GERADORES = {
     "gemini": gemini_gerar_mensagem,
     "groq": groq_gerar_mensagem,
+    "claude": claude_gerar_mensagem,
     "nvidia": nvidia_gerar_mensagem,
 }
 
@@ -499,8 +532,8 @@ def gerar_mensagem_com_fallback(nome, categoria, endereco, nota, tipo="contato",
     except NenhumProvedorDisponivel as excecao:
         if excecao.erro_final is None:
             raise RuntimeError(
-                "Nenhuma chave de IA configurada. Crie um arquivo .env com GEMINI_API_KEY, "
-                "GROQ_API_KEY e/ou NVIDIA_API_KEY (veja .env.example)."
+                "Nenhuma chave de IA configurada. Configure em Configurações (Gemini, Groq, Claude "
+                "ou NVIDIA) ou no arquivo .env."
             )
         raise RuntimeError(
             "Todos os provedores de IA configurados falharam agora. "

@@ -13,9 +13,10 @@ import { ScraperProxyCard } from "@/components/configuracoes/ScraperProxyCard"
 import { SomConfigCard } from "@/components/configuracoes/SomConfigCard"
 import { useConfiguracoes } from "@/hooks/useConfiguracoes"
 
-const TITULOS: Record<"gemini" | "groq" | "nvidia" | "pagespeed", string> = {
+const TITULOS: Record<"gemini" | "groq" | "claude" | "nvidia" | "pagespeed", string> = {
   gemini: "Google Gemini",
   groq: "Groq",
+  claude: "Claude (reserva paga)",
   nvidia: "NVIDIA",
   pagespeed: "Google PageSpeed (opcional)",
 }
@@ -52,8 +53,9 @@ export function ConfiguracoesPage() {
           </h2>
           <p className="text-sm text-muted-foreground">
             As chaves abaixo são usadas para gerar mensagens por IA. O sistema
-            tenta cada provedor na ordem Gemini → Groq → NVIDIA, e passa para
-            o próximo automaticamente se algum falhar ou ficar sem cota.
+            tenta cada provedor na ordem Gemini → Groq → Claude → NVIDIA, e
+            passa para o próximo automaticamente se algum falhar ou ficar sem
+            cota. O Claude é pago, mas só é usado quando os gratuitos falham.
           </p>
         </div>
 
@@ -65,7 +67,7 @@ export function ConfiguracoesPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {(["gemini", "groq", "nvidia", "pagespeed"] as const).map((provedor) => (
+            {(["gemini", "groq", "claude", "nvidia", "pagespeed"] as const).map((provedor) => (
               <ProvedorApiCard
                 key={provedor}
                 provedor={provedor}
@@ -75,7 +77,9 @@ export function ConfiguracoesPage() {
             ))}
             {data.gemini.configurada && <GeminiModeloCard />}
             <p className="text-xs text-muted-foreground">
-              A chave do PageSpeed é opcional: adiciona a nota oficial de
+              Claude: usa o Claude Haiku 5.5, o modelo mais barato da
+              Anthropic (centavos de dólar por dia no uso do piloto). A chave
+              precisa de créditos em console.anthropic.com. A chave do PageSpeed é opcional: adiciona a nota oficial de
               desempenho do Google no diagnóstico em PDF (funciona sem chave
               para uso leve, mas com limites).
             </p>
