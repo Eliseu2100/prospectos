@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react"
-import { Copy, MessageCircle, MessageCircleReply, Send, Sparkles } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import {
+  Copy,
+  MessageCircle,
+  MessageCircleReply,
+  MessagesSquare,
+  Send,
+  Sparkles,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { TemplateSelector } from "@/components/shared/TemplateSelector"
 import { useClipboard } from "@/hooks/useClipboard"
-import { useEnviarWhatsapp, useEstadoWhatsapp } from "@/hooks/useEnvio"
+import { useEnviarWhatsapp, useWhatsappConectado } from "@/hooks/useEnvio"
 import { ajustarSaudacao } from "@/lib/saudacao"
 import { formatarTempoRelativo } from "@/lib/formatters"
 import { linkWhatsappComMensagem } from "@/services/tarefasService"
@@ -51,11 +59,12 @@ export function LeadMessageGenerator({
     copiar: copiarNumero,
   } = useClipboard()
 
-  // envio direto só aparece com a Evolution API conectada; senão fica o
-  // "Abrir WhatsApp" de sempre
-  const { data: estadoWhatsapp } = useEstadoWhatsapp()
+  // com a Evolution API conectada, envio e conversa acontecem dentro do app;
+  // senão fica o "Abrir WhatsApp" de sempre (WhatsApp Web por fora)
+  const navigate = useNavigate()
+  const whatsappConectado = useWhatsappConectado()
   const enviarWhatsapp = useEnviarWhatsapp("maps", lead.place_id)
-  const podeEnviarDireto = estadoWhatsapp?.estado === "open" && Boolean(lead.telefone)
+  const podeEnviarDireto = whatsappConectado && Boolean(lead.telefone)
 
   const handleGerar = (tipo: "contato" | "followup") => {
     const jaTinhaMensagem = mensagem.trim().length > 0
@@ -126,15 +135,21 @@ export function LeadMessageGenerator({
             {enviarWhatsapp.isPending ? "Enviando..." : "Enviar pelo WhatsApp"}
           </Button>
         )}
-        {lead.whatsapp_link && (
+        {podeEnviarDireto && (
           <Button
-            variant={podeEnviarDireto ? "outline" : "default"}
+            variant="outline"
             size="sm"
-            className={
-              podeEnviarDireto
-                ? "border-success/40 text-success hover:bg-success/10"
-                : "bg-success text-white hover:bg-success/90"
-            }
+            className="border-success/40 text-success hover:bg-success/10"
+            onClick={() => navigate(`/conversas/${encodeURIComponent(lead.place_id)}`)}
+          >
+            <MessagesSquare className="size-4" />
+            Abrir conversa
+          </Button>
+        )}
+        {lead.whatsapp_link && !podeEnviarDireto && (
+          <Button
+            size="sm"
+            className="bg-success text-white hover:bg-success/90"
             onClick={() => {
               // avisa de quem é a conversa antes da janela abrir, pro cockpit
               // vincular as mensagens capturadas ao lead certo

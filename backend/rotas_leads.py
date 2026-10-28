@@ -232,6 +232,9 @@ def atualizar_status(place_id):
         lead_atual = conexao.execute("SELECT status FROM leads WHERE place_id = ?", (place_id,)).fetchone()
         if lead_atual is None:
             return jsonify({"erro": "lead não encontrado (pode ter sido excluído)"}), 404
+        if lead_atual["status"] == novo_status:
+            # ex.: o envio pelo WhatsApp já marcou "contatado" - não duplica o histórico
+            return jsonify({"ok": True})
 
         if novo_status in STATUS_QUE_ENCERRAM_FOLLOWUP:
             conexao.execute(

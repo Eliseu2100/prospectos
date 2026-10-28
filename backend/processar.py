@@ -466,6 +466,7 @@ def migrar_banco(conexao):
         "site_problemas": "TEXT",
         "site_checklist": "TEXT",  # JSON {"tem": [...], "falta": [...]} - raio-X do site
         "instagram_url": "TEXT",
+        "whatsapp_jid": "TEXT",  # JID devolvido pela Evolution no envio (pode ser @lid)
     }
     for nome, tipo in novas_colunas.items():
         if nome not in colunas_existentes:

@@ -23,10 +23,12 @@ import { SiteStatusBadge } from "@/components/leads/SiteStatusBadge"
 import { InstagramIcon } from "@/components/icons/InstagramIcon"
 import { useLeads } from "@/hooks/useLeads"
 import { useLeadMutations } from "@/hooks/useLeadMutations"
+import { useEnviarWhatsapp, useWhatsappConectado } from "@/hooks/useEnvio"
 import { tocarSom } from "@/hooks/useSom"
 import { montarEstrategia } from "@/lib/estrategia"
 import { formatarNota } from "@/lib/formatters"
 import { linkWhatsappComMensagem } from "@/services/tarefasService"
+import { ajustarSaudacao } from "@/lib/saudacao"
 import { FILTROS_VAZIOS, type Lead } from "@/types/lead"
 
 const FILTROS_NOVOS = { ...FILTROS_VAZIOS, status: "novo" as const, ordenar: "score" as const }
@@ -54,7 +56,16 @@ function CartaoDaSessao({
     setMensagem(modo === "novo" ? (lead.mensagem_gerada ?? "") : "")
   }, [lead.place_id, lead.mensagem_gerada, modo])
 
+  // WhatsApp conectado pela Evolution: envia direto daqui, sem sair do app
+  const enviarDireto = useWhatsappConectado() && Boolean(lead.telefone)
+  const enviarWhatsapp = useEnviarWhatsapp("maps", lead.place_id)
+
   const abrirWhatsappEContatar = () => {
+    if (enviarDireto) {
+      if (!mensagem.trim() || enviarWhatsapp.isPending) return
+      enviarWhatsapp.mutate(ajustarSaudacao(mensagem), { onSuccess: onContatado })
+      return
+    }
     if (lead.whatsapp_link) {
       window.open(linkWhatsappComMensagem(lead.whatsapp_link, mensagem || null), "_blank")
     }
@@ -186,11 +197,23 @@ function CartaoDaSessao({
       </div>
 
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-        <Button size="lg" onClick={abrirWhatsappEContatar} disabled={!lead.whatsapp_link}>
+        <Button
+          size="lg"
+          onClick={abrirWhatsappEContatar}
+          disabled={
+            enviarDireto ? !mensagem.trim() || enviarWhatsapp.isPending : !lead.whatsapp_link
+          }
+        >
           <MessageCircle className="size-4" />
-          {modo === "followup"
-            ? "Abrir WhatsApp + follow-up feito"
-            : "Abrir WhatsApp + marcar contatado"}
+          {enviarDireto
+            ? enviarWhatsapp.isPending
+              ? "Enviando..."
+              : modo === "followup"
+                ? "Enviar pelo WhatsApp + follow-up feito"
+                : "Enviar pelo WhatsApp + marcar contatado"
+            : modo === "followup"
+              ? "Abrir WhatsApp + follow-up feito"
+              : "Abrir WhatsApp + marcar contatado"}
           <kbd className="ml-1 hidden rounded bg-primary-foreground/20 px-1.5 text-[10px] sm:inline">Enter</kbd>
         </Button>
         <Button size="lg" variant="outline" onClick={onPular}>

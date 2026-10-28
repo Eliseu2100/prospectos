@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, Copy, MessageCircle, Send } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Copy, MessageCircle, NotebookPen, Send } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Header } from "@/components/layout/Header"
@@ -14,6 +14,7 @@ import { httpClient } from "@/services/httpClient"
 import { conversaService } from "@/services/conversaService"
 import { linkWhatsappComMensagem } from "@/services/tarefasService"
 import { useClipboard } from "@/hooks/useClipboard"
+import { useEnviarWhatsapp, useSincronizarLead, useWhatsappConectado } from "@/hooks/useEnvio"
 import {
   useConversa,
   useConversaMutations,
@@ -38,7 +39,12 @@ export function ConversaPage() {
   })
 
   const { data: captura } = useEstadoCaptura()
-  const capturaAtiva = Boolean(captura?.ativa)
+  // com a Evolution API conectada, a conversa acontece aqui dentro: envia por
+  // ela e puxa as respostas do lead a cada poucos segundos
+  const whatsappConectado = useWhatsappConectado()
+  useSincronizarLead(placeId, whatsappConectado)
+  const enviarWhatsapp = useEnviarWhatsapp(CANAL, placeId)
+  const capturaAtiva = Boolean(captura?.ativa) || whatsappConectado
   const { data, isLoading } = useConversa(CANAL, placeId, capturaAtiva)
   const { adicionarMensagem, removerMensagem, analisar } = useConversaMutations(CANAL, placeId)
   useEventosDoCockpit(CANAL, placeId)
@@ -58,6 +64,12 @@ export function ConversaPage() {
     }
     conversaService.registrarLeadAtivo(CANAL, placeId).catch(() => {})
     window.open(linkWhatsappComMensagem(lead.whatsapp_link, rascunho || null), "_blank")
+  }
+
+  const enviarPeloWhatsapp = () => {
+    const texto = rascunho.trim()
+    if (!texto) return
+    enviarWhatsapp.mutate(texto, { onSuccess: () => setRascunho("") })
   }
 
   const registrarNoHistorico = () => {
@@ -98,7 +110,14 @@ export function ConversaPage() {
               </p>
             )}
           </div>
-          <StatusCaptura estado={captura} onAbrirWhatsapp={abrirWhatsapp} />
+          {whatsappConectado ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-xs font-medium text-success">
+              <CheckCircle2 className="size-3.5" />
+              WhatsApp conectado · respostas chegam aqui automaticamente
+            </span>
+          ) : (
+            <StatusCaptura estado={captura} onAbrirWhatsapp={abrirWhatsapp} />
+          )}
         </div>
 
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
@@ -121,6 +140,7 @@ export function ConversaPage() {
 
             {/* Composer: nada sai daqui sem você mandar. */}
             <div className="border-t border-border p-3">
+              {!whatsappConectado && (
               <div className="mb-2 flex items-center gap-1 text-xs">
                 <span className="text-muted-foreground">Registrar como:</span>
                 {(["lead", "vendedor"] as const).map((autor) => (
@@ -139,16 +159,39 @@ export function ConversaPage() {
                   </button>
                 ))}
               </div>
+              )}
 
               <Textarea
                 ref={composerRef}
                 value={rascunho}
                 onChange={(e) => setRascunho(e.target.value)}
-                placeholder="Escreva ou cole a mensagem aqui..."
+                placeholder={
+                  whatsappConectado
+                    ? "Escreva sua mensagem... (Ctrl+Enter envia)"
+                    : "Escreva ou cole a mensagem aqui..."
+                }
+                onKeyDown={(e) => {
+                  if (whatsappConectado && e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault()
+                    enviarPeloWhatsapp()
+                  }
+                }}
                 className="min-h-[76px] resize-none"
               />
 
               <div className="mt-2 flex flex-wrap gap-2">
+                {whatsappConectado && (
+                  <Button
+                    size="sm"
+                    onClick={enviarPeloWhatsapp}
+                    disabled={!rascunho.trim() || enviarWhatsapp.isPending || !lead?.telefone}
+                    className="bg-success text-white hover:bg-success/90"
+                  >
+                    <Send className="size-4" />
+                    {enviarWhatsapp.isPending ? "Enviando..." : "Enviar pelo WhatsApp"}
+                  </Button>
+                )}
+                {!whatsappConectado && (
                 <Button
                   size="sm"
                   onClick={abrirWhatsapp}
@@ -158,23 +201,27 @@ export function ConversaPage() {
                   <MessageCircle className="size-4" />
                   Abrir no WhatsApp
                 </Button>
+                )}
                 <Button size="sm" variant="outline" onClick={() => copiar(rascunho)} disabled={!rascunho.trim()}>
                   <Copy className="size-4" />
                   {copiado ? "Copiado!" : "Copiar"}
                 </Button>
+                {!whatsappConectado && (
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={registrarNoHistorico}
                   disabled={!rascunho.trim() || adicionarMensagem.isPending}
                 >
-                  <Send className="size-4" />
+                  <NotebookPen className="size-4" />
                   Registrar no histórico
                 </Button>
+                )}
               </div>
               <p className="mt-2 text-[11px] text-muted-foreground">
-                O ProspectOS nunca envia mensagem sozinho: você revisa e envia pelo
-                WhatsApp.
+                {whatsappConectado
+                  ? "Nada sai sem o seu clique em Enviar. A conversa também continua no seu celular normalmente."
+                  : "O ProspectOS nunca envia mensagem sozinho: você revisa e envia pelo WhatsApp."}
               </p>
             </div>
           </section>

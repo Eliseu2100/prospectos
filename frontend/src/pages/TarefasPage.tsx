@@ -12,7 +12,7 @@ import { PageHero } from "@/components/shared/PageHero"
 import { useTarefasHoje } from "@/hooks/useTarefasHoje"
 import { tocarSom } from "@/hooks/useSom"
 import { ajustarSaudacao } from "@/lib/saudacao"
-import { linkWhatsappComMensagem } from "@/services/tarefasService"
+import { BotaoWhatsappLead } from "@/components/shared/BotaoWhatsappLead"
 import { formatarNota } from "@/lib/formatters"
 import type { LeadQuente, TarefaFollowup } from "@/types/tarefas"
 
@@ -55,16 +55,11 @@ function LinhaFollowup({
       </div>
       <div className="flex flex-wrap gap-1.5">
         {tarefa.canal === "maps" && tarefa.whatsapp_link && (
-          <Button size="sm" variant="outline" className="h-8 text-xs" asChild>
-            <a
-              href={linkWhatsappComMensagem(tarefa.whatsapp_link, tarefa.mensagem)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <MessageCircle className="size-3.5" />
-              Abrir WhatsApp
-            </a>
-          </Button>
+          <BotaoWhatsappLead
+            placeId={String(tarefa.id)}
+            whatsappLink={tarefa.whatsapp_link}
+            mensagem={tarefa.mensagem}
+          />
         )}
         {tarefa.canal === "instagram" && tarefa.username && (
           <>
@@ -133,21 +128,16 @@ function LinhaLeadQuente({
       <SiteStatusBadge siteStatus={lead.site_status} siteProblemas={lead.site_problemas} />
       <div className="flex flex-wrap gap-1.5">
         {lead.whatsapp_link && (
-          <Button size="sm" variant="outline" className="h-8 text-xs" asChild>
-            <a
-              href={linkWhatsappComMensagem(lead.whatsapp_link, lead.mensagem)}
-              target="_blank"
-              rel="noreferrer"
-              title={
-                lead.mensagem
-                  ? "Abre o WhatsApp com a mensagem gerada já preenchida"
-                  : "Abre o WhatsApp (gere a mensagem na tela de leads pra levá-la preenchida)"
-              }
-            >
-              <MessageCircle className="size-3.5" />
-              Abrir WhatsApp
-            </a>
-          </Button>
+          <BotaoWhatsappLead
+            placeId={lead.id}
+            whatsappLink={lead.whatsapp_link}
+            mensagem={lead.mensagem}
+            title={
+              lead.mensagem
+                ? "Abre o WhatsApp com a mensagem gerada já preenchida"
+                : "Abre o WhatsApp (gere a mensagem na tela de leads pra levá-la preenchida)"
+            }
+          />
         )}
         <Button size="sm" className="h-8 text-xs" onClick={onContatado} disabled={desabilitado}>
           <Check className="size-3.5" />

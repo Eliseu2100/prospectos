@@ -165,6 +165,10 @@ if __name__ == "__main__":
         if paths.EMPACOTADO and os.environ.get("PROSPECTOS_NO_BROWSER") != "1":
             threading.Timer(1.0, _abrir_navegador, args=(porta,)).start()
 
+        # traz as respostas dos leads do WhatsApp (Evolution API) pro histórico
+        import sincronizacao_whatsapp
+        sincronizacao_whatsapp.iniciar_em_segundo_plano()
+
         # waitress: servidor WSGI de produção (o dev server do Flask não é pra isso)
         from waitress import serve
 

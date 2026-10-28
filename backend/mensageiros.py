@@ -123,12 +123,28 @@ def numero_internacional(telefone):
 
 
 def enviar_whatsapp(telefone, texto):
+    """Envia e retorna (id_da_mensagem, jid). O jid é como o WhatsApp endereça
+    a conversa - pode vir como @lid em vez do número, e a sincronização precisa
+    dele pra achar as respostas."""
     _, _, instancia = config_evolution()
     numero = numero_internacional(telefone)
     if not numero:
         raise ErroEnvio("Este lead não tem telefone.")
     dados = _evolution("POST", f"/message/sendText/{instancia}", {"number": numero, "text": texto})
-    return (dados.get("key") or {}).get("id")
+    chave = dados.get("key") or {}
+    return chave.get("id"), chave.get("remoteJid")
+
+
+def buscar_mensagens(jid, limite=100):
+    """Mensagens mais recentes de uma conversa (a Evolution devolve da mais nova
+    pra mais antiga)."""
+    _, _, instancia = config_evolution()
+    dados = _evolution("POST", f"/chat/findMessages/{instancia}", {
+        "where": {"key": {"remoteJid": jid}},
+        "page": 1,
+        "offset": limite,
+    })
+    return ((dados.get("messages") or {}).get("records")) or []
 
 
 # ---------------------------------------------------------------------------

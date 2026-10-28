@@ -36,6 +36,24 @@ export interface EnvioWhatsappResposta {
   limite_diario: number
 }
 
+export interface ConversaCaixa {
+  place_id: string
+  nome: string
+  telefone: string | null
+  status: string
+  nicho: string | null
+  ultimo_autor: "lead" | "vendedor"
+  ultimo_texto: string
+  ultima_em: string
+  aguardando_voce: boolean
+  ja_respondeu: boolean
+}
+
+export interface CaixaWhatsapp {
+  conversas: ConversaCaixa[]
+  sincronizacao: { ultima_em: string | null; novas: number; erro: string | null }
+}
+
 export const envioService = {
   obterConfig: () => httpClient.get<ConfigEnvio>("/api/envio/config"),
 
@@ -59,6 +77,16 @@ export const envioService = {
       `/api/envio/whatsapp/${canal}/${encodeURIComponent(leadRef)}`,
       { texto }
     ),
+
+  sincronizarTodos: () =>
+    httpClient.post<{ ok: true; novas: number }>("/api/envio/whatsapp/sincronizar"),
+
+  sincronizarLead: (placeId: string) =>
+    httpClient.post<{ ok: true; novas: number }>(
+      `/api/envio/whatsapp/sincronizar/maps/${encodeURIComponent(placeId)}`
+    ),
+
+  caixa: () => httpClient.get<CaixaWhatsapp>("/api/envio/whatsapp/caixa"),
 
   detectarChatTelegram: () =>
     httpClient.post<{ ok: true; chat_id: string; nome: string }>("/api/envio/telegram/detectar-chat"),

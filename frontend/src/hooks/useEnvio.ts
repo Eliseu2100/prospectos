@@ -97,10 +97,63 @@ export function useEnviarWhatsapp(canal: string, leadRef: string) {
     onSuccess: (res) => {
       invalidarLeads()
       queryClient.invalidateQueries({ queryKey: ["conversa", canal, leadRef] })
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-caixa"] })
       queryClient.invalidateQueries({ queryKey: CHAVE_CONFIG })
       toast.success(
         `Mensagem enviada pelo WhatsApp (${res.enviados_hoje}/${res.limite_diario} hoje)` +
           (res.status_novo ? " · lead marcado como contatado." : ".")
+      )
+    },
+    onError: (erro: Error) => toast.error(erro.message),
+  })
+}
+
+/** true quando a Evolution API está com o WhatsApp conectado - aí as conversas
+ * acontecem dentro do app em vez de abrir o WhatsApp Web por fora. */
+export function useWhatsappConectado() {
+  const { data } = useEstadoWhatsapp()
+  return data?.estado === "open"
+}
+
+/** Com a conversa aberta na tela, puxa as mensagens novas desse lead da
+ * Evolution a cada poucos segundos e atualiza o histórico. */
+export function useSincronizarLead(placeId: string, ativo: boolean) {
+  const queryClient = useQueryClient()
+  return useQuery({
+    queryKey: ["whatsapp-sync-lead", placeId],
+    queryFn: async () => {
+      const res = await envioService.sincronizarLead(placeId)
+      if (res.novas > 0) {
+        queryClient.invalidateQueries({ queryKey: ["conversa", "maps", placeId] })
+        queryClient.invalidateQueries({ queryKey: ["lead", placeId] })
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-caixa"] })
+      }
+      return res
+    },
+    enabled: ativo && Boolean(placeId),
+    refetchInterval: 8000,
+    refetchIntervalInBackground: true,
+  })
+}
+
+export function useCaixaWhatsapp() {
+  return useQuery({
+    queryKey: ["whatsapp-caixa"],
+    queryFn: envioService.caixa,
+    refetchInterval: 15000,
+  })
+}
+
+export function useSincronizarTodos() {
+  const queryClient = useQueryClient()
+  const invalidarLeads = useInvalidarLeads()
+  return useMutation({
+    mutationFn: envioService.sincronizarTodos,
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-caixa"] })
+      invalidarLeads()
+      toast.success(
+        res.novas ? `${res.novas} mensagem(ns) nova(s) do WhatsApp.` : "Tudo em dia, nenhuma mensagem nova."
       )
     },
     onError: (erro: Error) => toast.error(erro.message),

@@ -257,3 +257,144 @@ class TestTelegram:
         resposta = cliente.post("/api/envio/telegram/teste")
         assert resposta.status_code == 400
         assert "@BotFather" in resposta.get_json()["erro"]
+
+
+# ---------------------------------------------------------------------------
+# Sincronização das conversas do WhatsApp e caixa de entrada
+# ---------------------------------------------------------------------------
+
+import sincronizacao_whatsapp
+
+
+def registro_wa(id_msg, texto, from_me=False, ts=1793150000, jid="5565996757327@s.whatsapp.net"):
+    return {"key": {"id": id_msg, "fromMe": from_me, "remoteJid": jid},
+            "messageType": "conversation", "message": {"conversation": texto},
+            "messageTimestamp": ts}
+
+
+@pytest.fixture
+def evolution_com_mensagens(monkeypatch, evolution_configurada):
+    """Substitui a busca da Evolution por um dict jid -> registros."""
+    conversas = {}
+    consultados = []
+
+    def buscar(jid, limite=100):
+        consultados.append(jid)
+        return conversas.get(jid, [])
+
+    monkeypatch.setattr(sincronizacao_whatsapp.mensageiros, "buscar_mensagens", buscar)
+    return conversas, consultados
+
+
+class TestTextoDaMensagem:
+    def test_texto_simples(self):
+        assert sincronizacao_whatsapp.texto_da_mensagem(registro_wa("1", "Oi")) == "Oi"
+
+    def test_texto_estendido(self):
+        reg = {"message": {"extendedTextMessage": {"text": "Com link"}}}
+        assert sincronizacao_whatsapp.texto_da_mensagem(reg) == "Com link"
+
+    def test_imagem_com_legenda(self):
+        reg = {"message": {"imageMessage": {"caption": "cardápio"}}}
+        assert sincronizacao_whatsapp.texto_da_mensagem(reg) == "[📷 Imagem] cardápio"
+
+    def test_audio(self):
+        assert sincronizacao_whatsapp.texto_da_mensagem({"message": {"audioMessage": {}}}) == "[🎤 Áudio]"
+
+    def test_evento_tecnico_e_ignorado(self):
+        reg = {"messageType": "reactionMessage", "message": {"reactionMessage": {}}}
+        assert sincronizacao_whatsapp.texto_da_mensagem(reg) is None
+
+
+class TestSincronizacao:
+    def test_resposta_do_lead_entra_no_historico_e_marca_respondeu(self, cliente, evolution_com_mensagens):
+        conversas, consultados = evolution_com_mensagens
+        criar_lead(status="contatado")
+        conversas["5565996757327@s.whatsapp.net"] = [
+            registro_wa("B", "Tenho interesse sim!", ts=1793150100),
+            registro_wa("A", "Oi, tudo bem?", from_me=True, ts=1793150000),
+        ]
+
+        corpo = cliente.post("/api/envio/whatsapp/sincronizar").get_json()
+        assert corpo["novas"] == 2
+        # consulta com e sem o 9º dígito
+        assert "556596757327@s.whatsapp.net" in consultados
+
+        conexao = db.conectar()
+        try:
+            status = conexao.execute("SELECT status FROM leads").fetchone()["status"]
+            msgs = conexao.execute(
+                "SELECT autor, texto, origem FROM mensagens_conversa ORDER BY enviada_em").fetchall()
+        finally:
+            conexao.close()
+        assert status == "respondeu"
+        assert [tuple(m) for m in msgs] == [
+            ("vendedor", "Oi, tudo bem?", "whatsapp"),
+            ("lead", "Tenho interesse sim!", "whatsapp"),
+        ]
+
+    def test_rodar_duas_vezes_nao_duplica(self, cliente, evolution_com_mensagens):
+        conversas, _ = evolution_com_mensagens
+        criar_lead(status="contatado")
+        conversas["5565996757327@s.whatsapp.net"] = [registro_wa("A", "Oi")]
+        assert cliente.post("/api/envio/whatsapp/sincronizar").get_json()["novas"] == 1
+        assert cliente.post("/api/envio/whatsapp/sincronizar").get_json()["novas"] == 0
+
+    def test_mensagem_enviada_pelo_app_nao_duplica(self, cliente, http, evolution_com_mensagens):
+        conversas, _ = evolution_com_mensagens
+        criar_lead()
+        cliente.post("/api/envio/whatsapp/maps/place-1", json={"texto": "Oi"})  # id MSG123
+        conversas["5565996757327@s.whatsapp.net"] = [registro_wa("MSG123", "Oi", from_me=True)]
+        assert cliente.post("/api/envio/whatsapp/sincronizar").get_json()["novas"] == 0
+
+    def test_usa_jid_lid_salvo_no_envio(self, cliente, http, evolution_com_mensagens):
+        conversas, consultados = evolution_com_mensagens
+        criar_lead()
+        http.resposta = RespostaFalsa(201, {"key": {"id": "X1", "remoteJid": "999@lid"}})
+        cliente.post("/api/envio/whatsapp/maps/place-1", json={"texto": "Oi"})
+        conversas["999@lid"] = [registro_wa("R1", "Opa, pode falar", jid="999@lid")]
+
+        assert cliente.post("/api/envio/whatsapp/sincronizar/maps/place-1").get_json()["novas"] == 1
+        assert "999@lid" in consultados
+
+    def test_lead_novo_sem_mensagens_nao_e_consultado(self, cliente, evolution_com_mensagens):
+        _, consultados = evolution_com_mensagens
+        criar_lead(status="novo")
+        cliente.post("/api/envio/whatsapp/sincronizar")
+        assert consultados == []
+
+    def test_status_avancado_nao_volta_para_respondeu(self, cliente, evolution_com_mensagens):
+        conversas, _ = evolution_com_mensagens
+        criar_lead(status="fechou")
+        conversas["5565996757327@s.whatsapp.net"] = [registro_wa("A", "Obrigado!")]
+        cliente.post("/api/envio/whatsapp/sincronizar")
+        conexao = db.conectar()
+        try:
+            assert conexao.execute("SELECT status FROM leads").fetchone()["status"] == "fechou"
+        finally:
+            conexao.close()
+
+
+class TestCaixaDeEntrada:
+    def test_separa_quem_aguarda_resposta(self, cliente, evolution_com_mensagens):
+        conversas, _ = evolution_com_mensagens
+        criar_lead("p1", "65996757327", status="contatado")
+        criar_lead("p2", "11988887777", status="contatado")
+        conversas["5565996757327@s.whatsapp.net"] = [
+            registro_wa("2", "Quanto custa?", ts=1793150100),
+            registro_wa("1", "Oi", from_me=True, ts=1793150000),
+        ]
+        conversas["5511988887777@s.whatsapp.net"] = [
+            registro_wa("3", "Oi", from_me=True, ts=1793150200, jid="5511988887777@s.whatsapp.net"),
+        ]
+        cliente.post("/api/envio/whatsapp/sincronizar")
+
+        conversas_caixa = cliente.get("/api/envio/whatsapp/caixa").get_json()["conversas"]
+        por_lead = {c["place_id"]: c for c in conversas_caixa}
+        assert por_lead["p1"]["aguardando_voce"] is True
+        assert por_lead["p1"]["ultimo_texto"] == "Quanto custa?"
+        assert por_lead["p1"]["status"] == "respondeu"
+        assert por_lead["p2"]["aguardando_voce"] is False
+        assert por_lead["p2"]["ja_respondeu"] is False
+        # mais recente primeiro
+        assert [c["place_id"] for c in conversas_caixa] == ["p2", "p1"]

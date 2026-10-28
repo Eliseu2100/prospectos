@@ -1,5 +1,5 @@
 import { Link, NavLink } from "react-router-dom"
-import { BookOpen, ListTodo, MapPin, Plus, Settings, Trash2 } from "lucide-react"
+import { BookOpen, ListTodo, MapPin, MessagesSquare, Plus, Settings, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/layout/ThemeToggle"
@@ -54,6 +54,9 @@ export function Header({ onNovaBusca, onVerIgnorados }: HeaderProps) {
         <nav className="flex items-center gap-1">
           <ItemNav to="/tarefas" icone={<ListTodo className="size-4" />}>
             Tarefas
+          </ItemNav>
+          <ItemNav to="/whatsapp" icone={<MessagesSquare className="size-4" />}>
+            WhatsApp
           </ItemNav>
           <ItemNav to="/leads" icone={<MapPin className="size-4" />}>
             Google Maps

@@ -18,6 +18,7 @@ from flask import Blueprint, jsonify, request
 import db
 import ia
 import mensageiros
+import sincronizacao_whatsapp
 from constantes import MAX_CARACTERES_MENSAGEM_CONVERSA, STATUS_QUE_ENCERRAM_FOLLOWUP
 from rotas_config import mascarar_chave
 from rotas_conversa import _inserir_mensagem, _validar_alvo
@@ -186,7 +187,7 @@ def enviar_whatsapp(canal, lead_ref):
         conexao.close()
 
     try:
-        id_externo = mensageiros.enviar_whatsapp(telefone, texto)
+        id_externo, jid = mensageiros.enviar_whatsapp(telefone, texto)
     except mensageiros.ErroEnvio as excecao:
         return _erro(excecao, 502)
 
@@ -195,6 +196,8 @@ def enviar_whatsapp(canal, lead_ref):
     try:
         chave = f"wa:{id_externo}" if id_externo else None
         _inserir_mensagem(conexao, canal, lead_ref, "vendedor", texto, agora, "app", chave)
+        if canal == "maps" and jid:
+            conexao.execute("UPDATE leads SET whatsapp_jid = ? WHERE place_id = ?", (jid, lead_ref))
         status_novo = None
         if canal == "maps" and lead.get("status") == "novo":
             status_novo = "contatado"
@@ -215,6 +218,70 @@ def enviar_whatsapp(canal, lead_ref):
     logger.info("whatsapp enviado para %s/%s via Evolution", canal, lead_ref)
     return jsonify({"ok": True, "status_novo": status_novo, "enviados_hoje": enviados,
                     "limite_diario": _limite_diario()})
+
+
+# ---------------------------------------------------------------------------
+# Conversas do WhatsApp dentro do app (sincronização + caixa de entrada)
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/envio/whatsapp/sincronizar", methods=["POST"])
+def sincronizar_whatsapp():
+    novas = sincronizacao_whatsapp.sincronizar_todos()
+    return jsonify({"ok": True, "novas": novas, **sincronizacao_whatsapp.estado_sincronizacao()})
+
+
+@bp.route("/api/envio/whatsapp/sincronizar/maps/<path:place_id>", methods=["POST"])
+def sincronizar_whatsapp_lead(place_id):
+    """Chamado em intervalo curto pela tela da conversa aberta - mensagem do
+    cliente aparece em segundos, sem esperar a rodada geral."""
+    lead, erro = _validar_alvo("maps", place_id)
+    if erro:
+        return erro
+    if not lead.get("telefone"):
+        return jsonify({"ok": True, "novas": 0})
+
+    conexao = db.conectar()
+    try:
+        novas = sincronizacao_whatsapp.sincronizar_lead(conexao, lead)
+        conexao.commit()
+    except mensageiros.ErroEnvio as excecao:
+        return _erro(excecao)
+    finally:
+        conexao.close()
+    return jsonify({"ok": True, "novas": novas})
+
+
+@bp.route("/api/envio/whatsapp/caixa")
+def caixa_de_entrada():
+    """Leads do Maps com conversa, com a última mensagem de cada um. `aguardando_voce`
+    = a última mensagem é do lead (ele respondeu e você ainda não)."""
+    conexao = db.conectar()
+    try:
+        linhas = conexao.execute(
+            """
+            SELECT l.place_id, l.nome, l.telefone, l.status, l.nicho,
+                   m.autor AS ultimo_autor, m.texto AS ultimo_texto, m.enviada_em AS ultima_em,
+                   (SELECT COUNT(*) FROM mensagens_conversa x
+                     WHERE x.canal = 'maps' AND x.lead_ref = l.place_id AND x.autor = 'lead') AS msgs_do_lead
+            FROM leads l
+            JOIN mensagens_conversa m ON m.id = (
+                SELECT id FROM mensagens_conversa
+                WHERE canal = 'maps' AND lead_ref = l.place_id
+                ORDER BY enviada_em DESC, id DESC LIMIT 1)
+            WHERE l.status != 'ignorado'
+            ORDER BY m.enviada_em DESC
+            """
+        ).fetchall()
+    finally:
+        conexao.close()
+
+    conversas = []
+    for linha in linhas:
+        item = dict(linha)
+        item["aguardando_voce"] = item["ultimo_autor"] == "lead"
+        item["ja_respondeu"] = item.pop("msgs_do_lead") > 0
+        conversas.append(item)
+    return jsonify({"conversas": conversas, "sincronizacao": sincronizacao_whatsapp.estado_sincronizacao()})
 
 
 # ---------------------------------------------------------------------------
