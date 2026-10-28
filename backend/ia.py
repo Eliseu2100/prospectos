@@ -132,6 +132,27 @@ def modelo_gemini():
     return modelo if modelo in MODELOS_GEMINI else MODELO_GEMINI_PADRAO
 
 
+# Modelo leve do Gemini usado quando o escolhido está sobrecarregado (503) -
+# o Flash costuma ficar indisponível em picos, o Flash-Lite quase nunca.
+MODELO_GEMINI_RESERVA = "gemini-flash-lite-latest"
+
+# Modelos da Groq em ordem de preferência. A Groq aposenta modelos sem aviso
+# (o llama-3.3-70b-versatile sumiu em 2026): se um não existir mais, tenta o próximo.
+MODELOS_GROQ = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]
+
+
+def _e_sobrecarga(erro):
+    status = getattr(erro, "status_code", None) or getattr(erro, "code", None)
+    texto = str(erro).lower()
+    return status == 503 or "unavailable" in texto or "high demand" in texto or "overloaded" in texto
+
+
+def _e_modelo_inexistente(erro):
+    status = getattr(erro, "status_code", None) or getattr(erro, "code", None)
+    texto = str(erro).lower()
+    return status == 404 or "model_not_found" in texto or "does not exist" in texto or "decommissioned" in texto
+
+
 def gemini_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False):
     from google import genai
 
@@ -141,10 +162,19 @@ def gemini_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_js
     config = {"system_instruction": system, "temperature": temperatura}
     if formato_json:
         config["response_mime_type"] = "application/json"
-    resposta = cliente.models.generate_content(
-        model=modelo_gemini(), contents=user, config=config
-    )
-    return resposta.text.strip()
+
+    modelos = [modelo_gemini()]
+    if modelos[0] != MODELO_GEMINI_RESERVA:
+        modelos.append(MODELO_GEMINI_RESERVA)
+    for indice, modelo in enumerate(modelos):
+        try:
+            resposta = cliente.models.generate_content(model=modelo, contents=user, config=config)
+            return resposta.text.strip()
+        except Exception as erro:
+            if indice + 1 < len(modelos) and _e_sobrecarga(erro):
+                logger.info("gemini %s sobrecarregado, tentando %s", modelo, modelos[indice + 1])
+                continue
+            raise
 
 
 def groq_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False):
@@ -153,16 +183,23 @@ def groq_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json
     chave = db.obter_config("groq")
     cliente = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=chave, timeout=IA_TIMEOUT_SEGUNDOS)
     extras = {"response_format": {"type": "json_object"}} if formato_json else {}
-    resposta = cliente.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        temperature=temperatura,
-        **extras,
-    )
-    return resposta.choices[0].message.content.strip()
+    for indice, modelo in enumerate(MODELOS_GROQ):
+        try:
+            resposta = cliente.chat.completions.create(
+                model=modelo,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                temperature=temperatura,
+                **extras,
+            )
+            return resposta.choices[0].message.content.strip()
+        except Exception as erro:
+            if indice + 1 < len(MODELOS_GROQ) and _e_modelo_inexistente(erro):
+                logger.warning("modelo %s não existe mais na Groq, tentando %s", modelo, MODELOS_GROQ[indice + 1])
+                continue
+            raise
 
 
 def nvidia_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_json=False):
@@ -807,13 +844,15 @@ Responda SEMPRE um único objeto JSON válido, sem markdown, com EXATAMENTE esta
 - "resposta": o texto a enviar ao lead. Obrigatório em "responder" e "encerrar"; string vazia em "passar_para_humano".
 
 Quando usar cada ação:
-- "responder": o lead fez pergunta simples ou demonstrou curiosidade (o que é, como funciona, exemplos, prazo, se é presencial, quem é você). Responda com base APENAS nas informações da oferta fornecidas. O objetivo é avançar um passo: entender a necessidade dele ou combinar de mostrar uma prévia/conversar.
-- "passar_para_humano": o lead pediu preço ou orçamento e o valor não está nas informações da oferta; quer fechar, negociar valor, marcar reunião/ligação, mandou áudio/imagem/documento que você não consegue ler, fez pergunta técnica ou fora do escopo, está irritado, ou você não tem certeza do que responder. Na dúvida, passe para o humano.
-- "encerrar": o lead disse claramente que não tem interesse, pediu para parar, perguntou como conseguiu o número com irritação, ou disse que é engano. A resposta deve ser UMA frase curta e educada de despedida, sem insistir e sem oferecer nada.
+- "responder": o lead fez pergunta simples ou demonstrou curiosidade (quem é você, o que é, como funciona, prazo, o que está incluso, formas de pagamento, se é presencial, objeções como "já tenho Instagram"). Responda com base APENAS nas informações da oferta fornecidas. O objetivo é avançar um passo: entender a necessidade dele ou combinar de mostrar uma prévia/conversar.
+- PREÇO: se o lead perguntar quanto custa e houver valor nas informações da oferta, RESPONDA com esse valor exatamente como está escrito (ex.: "a partir de R$ X"), diga em uma frase o que está incluso e termine com uma pergunta curta que ajude a entender o que ele precisa. Só passe para o humano se não houver valor escrito, se ele pedir orçamento de algo fora do que está descrito, ou se pedir desconto/negociar.
+- "passar_para_humano": o lead quer fechar ou contratar, negocia valor ou pede desconto, quer marcar reunião/ligação, pede portfólio/exemplos/link/arquivo que não está nas informações da oferta, mandou áudio/imagem/documento que você não consegue ler, fez pergunta técnica ou fora do escopo, está irritado, ou você não tem certeza do que responder. Na dúvida, passe para o humano.
+- "encerrar": o lead disse claramente que não tem interesse, pediu para parar, demonstrou irritação com o contato, ou disse que é engano. A resposta deve ser UMA frase curta e educada de despedida, sem insistir e sem oferecer nada. Se ele só perguntar, sem irritação, como você conseguiu o contato, isso NÃO é encerrar: responda com transparência que o número está no perfil público da empresa no Google Maps e siga a conversa com leveza.
 
 Regras da resposta:
 - Primeira pessoa do singular, tom humano, curto e natural, espelhando o tamanho e a formalidade do lead. Uma pergunta por mensagem no máximo.
 - Nunca invente preço, prazo, garantia, cliente, resultado ou dado que não esteja nas informações fornecidas.
+- Nunca prometa enviar algo depois (link, exemplo, portfólio, proposta, arquivo, "vou te mandar"): quem vai mandar é o vendedor, e você não tem esses materiais. Se o lead precisa de algo assim, use "passar_para_humano". Se houver um link nas informações da oferta, você pode enviá-lo direto na resposta.
 - Nunca diga que é uma IA, um robô ou uma mensagem automática, e nunca prometa algo que só o vendedor pode decidir.
 - Sem saudação repetida se a conversa já está em andamento. Sem emojis em excesso."""
 
