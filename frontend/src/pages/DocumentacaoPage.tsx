@@ -52,7 +52,7 @@ export function DocumentacaoPage() {
         </Link>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr]">
-          <nav className="h-fit space-y-0.5 rounded-xl border border-border bg-card p-2 shadow-sm md:sticky md:top-20">
+          <nav className="h-fit space-y-0.5 rounded-2xl bg-card p-2 md:sticky md:top-20">
             {TOPICOS.map(({ id, label, icone: Icone }) => (
               <button
                 key={id}
@@ -70,7 +70,7 @@ export function DocumentacaoPage() {
             ))}
           </nav>
 
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-2xl bg-card p-6">
             <Conteudo />
           </div>
         </div>

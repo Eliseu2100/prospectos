@@ -18,6 +18,8 @@ export const STATUS_VALIDOS: StatusLead[] = [
 export interface Lead {
   place_id: string
   nome: string
+  /** quem conduz a conversa no piloto automático (null = piloto nunca tocou) */
+  piloto_status?: "automatico" | "humano" | "encerrado" | "sem_whatsapp" | null
   categoria: string | null
   endereco: string | null
   nota: number | null

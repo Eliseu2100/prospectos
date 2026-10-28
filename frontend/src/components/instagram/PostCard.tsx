@@ -57,7 +57,7 @@ export function PostCard({
       }}
       aria-label={`Abrir leads do post ${post.post_url}`}
       className={cn(
-        "flex cursor-pointer flex-col gap-3 rounded-xl border border-border bg-gradient-to-br from-instagram-start/[0.06] via-card to-instagram-end/[0.06] p-4 text-left shadow-sm transition-colors hover:from-instagram-start/[0.1] hover:to-instagram-end/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "flex cursor-pointer flex-col gap-3 rounded-2xl bg-gradient-to-br from-instagram-start/[0.06] via-card to-instagram-end/[0.06] p-4 text-left shadow-sm transition-colors hover:from-instagram-start/[0.1] hover:to-instagram-end/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         selecionado && "ring-2 ring-primary"
       )}
     >

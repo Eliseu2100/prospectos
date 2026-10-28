@@ -37,7 +37,7 @@ export function SobreDoc() {
             href={url}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent/40"
+            className="flex items-center gap-2 rounded-2xl bg-card px-4 py-3 text-sm font-medium transition-colors hover:bg-accent/40"
           >
             <Icone className="size-4" />
             {label}

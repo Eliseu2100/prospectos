@@ -20,7 +20,7 @@ export function BreakdownPorNicho({
 
   if (nichos.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-2xl bg-card p-4">
         <h3 className="mb-4 text-sm font-medium text-muted-foreground">
           Conversão por nicho
         </h3>
@@ -35,7 +35,7 @@ export function BreakdownPorNicho({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-2xl bg-card p-4">
       <h3 className="mb-4 text-sm font-medium text-muted-foreground">
         Conversão por nicho
       </h3>

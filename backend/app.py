@@ -12,6 +12,7 @@ O código está dividido por responsabilidade:
     rotas_analytics.py  - métricas, funis, meta semanal, follow-ups do dia
     rotas_config.py     - chaves de IA, proxies, templates de mensagem
     rotas_envio.py      - envio direto por WhatsApp (Evolution API) e Telegram
+    rotas_piloto.py     - piloto automático (primeiro contato e respostas pela IA)
     ia.py               - provedores de IA e fallback unificado
     jobs.py             - jobs de background (scraper/análise) + persistência
     db.py               - conexão, configurações e backup do banco
@@ -58,6 +59,7 @@ import rotas_conversa
 import rotas_envio
 import rotas_instagram
 import rotas_leads
+import rotas_piloto
 
 app = Flask(__name__)
 app.register_blueprint(rotas_leads.bp)
@@ -66,6 +68,7 @@ app.register_blueprint(rotas_analytics.bp)
 app.register_blueprint(rotas_config.bp)
 app.register_blueprint(rotas_conversa.bp)
 app.register_blueprint(rotas_envio.bp)
+app.register_blueprint(rotas_piloto.bp)
 
 
 @app.errorhandler(Exception)
@@ -168,6 +171,9 @@ if __name__ == "__main__":
         # traz as respostas dos leads do WhatsApp (Evolution API) pro histórico
         import sincronizacao_whatsapp
         sincronizacao_whatsapp.iniciar_em_segundo_plano()
+        # piloto automático (só age quando ligado em Piloto automático)
+        import piloto
+        piloto.iniciar_em_segundo_plano()
 
         # waitress: servidor WSGI de produção (o dev server do Flask não é pra isso)
         from waitress import serve

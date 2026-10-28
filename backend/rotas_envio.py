@@ -159,6 +159,41 @@ def conectar_whatsapp():
     return jsonify({"conectado": qrcode is None, "qrcode": qrcode})
 
 
+def enviar_e_registrar(canal, lead_ref, lead, texto):
+    """Envia pela Evolution e grava no histórico (origem "app"), guarda o JID e
+    passa lead do Maps de "novo" pra "contatado". Retorna o status novo (ou None).
+    Levanta mensageiros.ErroEnvio se o envio falhar - nada é gravado nesse caso.
+    Usada pela rota de envio e pelo piloto automático."""
+    telefone = lead.get("telefone") or lead.get("whatsapp_link")
+    id_externo, jid = mensageiros.enviar_whatsapp(telefone, texto)
+
+    agora = _agora()
+    conexao = db.conectar()
+    try:
+        chave = f"wa:{id_externo}" if id_externo else None
+        _inserir_mensagem(conexao, canal, lead_ref, "vendedor", texto, agora, "app", chave)
+        if canal == "maps" and jid:
+            conexao.execute("UPDATE leads SET whatsapp_jid = ? WHERE place_id = ?", (jid, lead_ref))
+        status_novo = None
+        if canal == "maps" and lead.get("status") == "novo":
+            status_novo = "contatado"
+            conexao.execute(
+                "UPDATE leads SET status = ?, atualizado_em = ? WHERE place_id = ?",
+                (status_novo, agora, lead_ref),
+            )
+            conexao.execute(
+                "INSERT INTO historico_status (place_id, status_anterior, status_novo, alterado_em) "
+                "VALUES (?, ?, ?, ?)",
+                (lead_ref, "novo", status_novo, agora),
+            )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+    logger.info("whatsapp enviado para %s/%s via Evolution", canal, lead_ref)
+    return status_novo
+
+
 @bp.route("/api/envio/whatsapp/<canal>/<path:lead_ref>", methods=["POST"])
 def enviar_whatsapp(canal, lead_ref):
     lead, erro = _validar_alvo(canal, lead_ref)
@@ -187,35 +222,20 @@ def enviar_whatsapp(canal, lead_ref):
         conexao.close()
 
     try:
-        id_externo, jid = mensageiros.enviar_whatsapp(telefone, texto)
+        status_novo = enviar_e_registrar(canal, lead_ref, lead, texto)
     except mensageiros.ErroEnvio as excecao:
         return _erro(excecao, 502)
 
-    agora = _agora()
     conexao = db.conectar()
     try:
-        chave = f"wa:{id_externo}" if id_externo else None
-        _inserir_mensagem(conexao, canal, lead_ref, "vendedor", texto, agora, "app", chave)
-        if canal == "maps" and jid:
-            conexao.execute("UPDATE leads SET whatsapp_jid = ? WHERE place_id = ?", (jid, lead_ref))
-        status_novo = None
-        if canal == "maps" and lead.get("status") == "novo":
-            status_novo = "contatado"
-            conexao.execute(
-                "UPDATE leads SET status = ?, atualizado_em = ? WHERE place_id = ?",
-                (status_novo, agora, lead_ref),
-            )
-            conexao.execute(
-                "INSERT INTO historico_status (place_id, status_anterior, status_novo, alterado_em) "
-                "VALUES (?, ?, ?, ?)",
-                (lead_ref, "novo", status_novo, agora),
-            )
-        conexao.commit()
+        if canal == "maps" and lead.get("piloto_status") == "automatico":
+            # você escreveu à mão nessa conversa: o piloto para de responder sozinho
+            conexao.execute("UPDATE leads SET piloto_status = 'humano' WHERE place_id = ?", (lead_ref,))
+            conexao.commit()
         enviados = _enviados_hoje(conexao)
     finally:
         conexao.close()
 
-    logger.info("whatsapp enviado para %s/%s via Evolution", canal, lead_ref)
     return jsonify({"ok": True, "status_novo": status_novo, "enviados_hoje": enviados,
                     "limite_diario": _limite_diario()})
 
@@ -301,7 +321,7 @@ def detectar_chat_telegram():
 @bp.route("/api/envio/telegram/teste", methods=["POST"])
 def testar_telegram():
     try:
-        mensageiros.enviar_telegram("✅ ProspectOS conectado! Você vai receber os avisos por aqui.")
+        mensageiros.enviar_telegram("✅ Seriax OS conectado! Você vai receber os avisos por aqui.")
     except mensageiros.ErroEnvio as excecao:
         return _erro(excecao)
     return jsonify({"ok": True})
@@ -327,7 +347,7 @@ def montar_resumo_do_dia():
     finally:
         conexao.close()
 
-    linhas = [f"📋 ProspectOS - resumo de {date.today().strftime('%d/%m')}", ""]
+    linhas = [f"📋 Seriax OS - resumo de {date.today().strftime('%d/%m')}", ""]
     if followups:
         linhas.append(f"🔁 {len(followups)} follow-up(s) pra hoje:")
         linhas += [f"• {f['nome']} - {f['telefone'] or 'sem telefone'}" for f in followups]

@@ -43,7 +43,7 @@ export function MetaSemanalCard() {
 
   if (editando) {
     return (
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card p-4">
         <Target className="size-4 shrink-0 text-muted-foreground" />
         <span className="text-sm text-muted-foreground">
           Meta semanal de leads contatados:
@@ -76,7 +76,7 @@ export function MetaSemanalCard() {
   const atingiu = meta.progresso >= meta.meta
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-2xl bg-card p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <Target className="size-4 text-muted-foreground" />

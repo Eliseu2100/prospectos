@@ -493,6 +493,53 @@ def atualizar_followup(place_id):
     return jsonify({"ok": True})
 
 
+def gerar_copy_para_lead(conexao, lead, tipo="contato"):
+    """Gera a copy de contato/follow-up de um lead do Maps (sqlite3.Row ou dict) e,
+    se for de contato, salva em mensagem_gerada. Retorna (mensagem, provedor, avisos).
+    Usada pela rota abaixo e pelo piloto automático. Levanta exceção se a IA falhar."""
+    # lead com site: captura o conteúdo real pra copy citar um detalhe específico,
+    # e anexa o raio-X (tem/falta) já salvo na busca
+    conteudo_site = None
+    if tipo == "contato" and lead["site_url"]:
+        conteudo_site = processar.capturar_conteudo_site(lead["site_url"])
+        try:
+            checklist = json.loads(lead["site_checklist"]) if lead["site_checklist"] else None
+        except (TypeError, ValueError):
+            checklist = None
+        if checklist and checklist.get("falta"):
+            resumo_raio_x = (
+                "Raio-X do site (dados reais): TEM "
+                + (", ".join(checklist.get("tem", [])) or "quase nada")
+                + "; FALTA " + ", ".join(checklist["falta"]) + "."
+            )
+            conteudo_site = f"{conteudo_site}\n{resumo_raio_x}" if conteudo_site else resumo_raio_x
+
+    mensagem, provedor_usado, avisos = ia.gerar_mensagem_com_fallback(
+        nome=lead["nome"],
+        categoria=lead["categoria"],
+        endereco=lead["endereco"],
+        nota=lead["nota"],
+        tipo=tipo,
+        follow_ups_enviados=lead["follow_ups_enviados"] or 0,
+        site_status=lead["site_status"],
+        site_problemas=lead["site_problemas"],
+        num_avaliacoes=lead["num_avaliacoes"],
+        cidade=lead["cidade"],
+        instagram_url=lead["instagram_url"],
+        # no follow-up a IA vê a mensagem já enviada, pra variar de verdade
+        mensagem_anterior=lead["mensagem_gerada"] if tipo == "followup" else None,
+        conteudo_site=conteudo_site,
+    )
+
+    if tipo == "contato":
+        conexao.execute(
+            "UPDATE leads SET mensagem_gerada = ?, atualizado_em = ? WHERE place_id = ?",
+            (mensagem, datetime.now().isoformat(timespec="seconds"), lead["place_id"]),
+        )
+        conexao.commit()
+    return mensagem, provedor_usado, avisos
+
+
 @bp.route("/api/leads/<place_id>/gerar-mensagem", methods=["POST"])
 def gerar_mensagem(place_id):
     corpo = request.json or {}
@@ -511,50 +558,11 @@ def gerar_mensagem(place_id):
         if tipo == "contato" and lead["mensagem_gerada"] and not forcar_nova:
             return jsonify({"mensagem": lead["mensagem_gerada"], "cache": True})
 
-        # lead com site: captura o conteúdo real pra copy citar um detalhe específico,
-        # e anexa o raio-X (tem/falta) já salvo na busca
-        conteudo_site = None
-        if tipo == "contato" and lead["site_url"]:
-            conteudo_site = processar.capturar_conteudo_site(lead["site_url"])
-            try:
-                checklist = json.loads(lead["site_checklist"]) if lead["site_checklist"] else None
-            except (TypeError, ValueError):
-                checklist = None
-            if checklist and checklist.get("falta"):
-                resumo_raio_x = (
-                    "Raio-X do site (dados reais): TEM "
-                    + (", ".join(checklist.get("tem", [])) or "quase nada")
-                    + "; FALTA " + ", ".join(checklist["falta"]) + "."
-                )
-                conteudo_site = f"{conteudo_site}\n{resumo_raio_x}" if conteudo_site else resumo_raio_x
-
         try:
-            mensagem, provedor_usado, avisos = ia.gerar_mensagem_com_fallback(
-                nome=lead["nome"],
-                categoria=lead["categoria"],
-                endereco=lead["endereco"],
-                nota=lead["nota"],
-                tipo=tipo,
-                follow_ups_enviados=lead["follow_ups_enviados"] or 0,
-                site_status=lead["site_status"],
-                site_problemas=lead["site_problemas"],
-                num_avaliacoes=lead["num_avaliacoes"],
-                cidade=lead["cidade"],
-                instagram_url=lead["instagram_url"],
-                # no follow-up a IA vê a mensagem já enviada, pra variar de verdade
-                mensagem_anterior=lead["mensagem_gerada"] if tipo == "followup" else None,
-                conteudo_site=conteudo_site,
-            )
+            mensagem, provedor_usado, avisos = gerar_copy_para_lead(conexao, lead, tipo)
         except Exception as erro:
             logger.exception("falha ao gerar mensagem em todos os provedores de IA configurados")
             return jsonify({"erro": str(erro)}), 500
-
-        if tipo == "contato":
-            conexao.execute(
-                "UPDATE leads SET mensagem_gerada = ?, atualizado_em = ? WHERE place_id = ?",
-                (mensagem, datetime.now().isoformat(timespec="seconds"), place_id),
-            )
-            conexao.commit()
     finally:
         conexao.close()
 

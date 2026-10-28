@@ -9,7 +9,7 @@ interface RaioXSiteProps {
  * extraído do HTML na busca, nada é chute. São os ganchos concretos da venda. */
 export function RaioXSite({ checklist }: RaioXSiteProps) {
   return (
-    <div className="space-y-2 rounded-xl border border-border bg-card p-4">
+    <div className="space-y-2 rounded-2xl bg-card p-4">
       <h3 className="flex items-center gap-1.5 text-sm font-semibold">
         <ScanSearch className="size-4 text-primary" />
         Raio-X do site atual

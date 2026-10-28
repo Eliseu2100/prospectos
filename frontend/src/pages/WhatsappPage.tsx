@@ -44,7 +44,7 @@ export function WhatsappPage() {
         <PageHero
           icone={<MessagesSquare className="size-6" />}
           titulo="WhatsApp"
-          descricao="Suas conversas com os leads, sem sair do ProspectOS."
+          descricao="Suas conversas com os leads, sem sair do Seriax OS."
           gradiente="from-success/85 via-success/75 to-primary/80"
           acoes={
             conectado && (

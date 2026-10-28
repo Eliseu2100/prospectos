@@ -21,7 +21,7 @@ export function NavCard({
     <Link
       to={to}
       className={cn(
-        "group flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-accent/40",
+        "group flex items-center gap-3 rounded-2xl bg-card p-4 transition-colors hover:bg-accent/40",
         destaqueInstagram &&
           "bg-gradient-to-br from-instagram-start/[0.06] via-card to-instagram-end/[0.06] hover:from-instagram-start/[0.1] hover:to-instagram-end/[0.1]"
       )}

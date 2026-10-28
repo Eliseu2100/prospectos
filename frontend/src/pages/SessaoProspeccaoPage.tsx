@@ -98,7 +98,7 @@ function CartaoDaSessao({
   }, [])
 
   return (
-    <div className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-sm">
+    <div className="space-y-4 rounded-[28px] bg-card p-6 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

@@ -467,6 +467,10 @@ def migrar_banco(conexao):
         "site_checklist": "TEXT",  # JSON {"tem": [...], "falta": [...]} - raio-X do site
         "instagram_url": "TEXT",
         "whatsapp_jid": "TEXT",  # JID devolvido pela Evolution no envio (pode ser @lid)
+        # piloto automático: 'automatico' (a IA conduz), 'humano' (você assumiu),
+        # 'encerrado' (lead pediu pra parar), 'sem_whatsapp' (número sem WhatsApp)
+        "piloto_status": "TEXT",
+        "piloto_respostas": "INTEGER NOT NULL DEFAULT 0",  # respostas automáticas seguidas
     }
     for nome, tipo in novas_colunas.items():
         if nome not in colunas_existentes:
@@ -615,6 +619,19 @@ def migrar_banco(conexao):
     # WhatsApp: o UNIQUE parcial evita gravar a mesma mensagem duas vezes
     # quando o DOM re-renderiza. Mensagens digitadas à mão têm chave NULL, e
     # NULLs não colidem em UNIQUE no SQLite - ou seja, nunca são bloqueadas.
+    conexao.execute(
+        """
+        CREATE TABLE IF NOT EXISTS piloto_eventos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            em TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            place_id TEXT,
+            nome TEXT,
+            detalhe TEXT
+        )
+        """
+    )
+
     conexao.execute(
         """
         CREATE TABLE IF NOT EXISTS mensagens_conversa (

@@ -44,7 +44,7 @@ export function FunilConversaoChart({
   const vazio = dados.every((d) => d.total === 0)
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-2xl bg-card p-4">
       <h3 className="mb-4 text-sm font-medium text-muted-foreground">
         Funil de conversão
       </h3>

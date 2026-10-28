@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, CheckCircle2, Copy, MessageCircle, NotebookPen, Send } from "lucide-react"
+import { ArrowLeft, Bot, CheckCircle2, Copy, Hand, MessageCircle, NotebookPen, Send } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Header } from "@/components/layout/Header"
@@ -15,6 +15,7 @@ import { conversaService } from "@/services/conversaService"
 import { linkWhatsappComMensagem } from "@/services/tarefasService"
 import { useClipboard } from "@/hooks/useClipboard"
 import { useEnviarWhatsapp, useSincronizarLead, useWhatsappConectado } from "@/hooks/useEnvio"
+import { useAssumirConversa, useDevolverAoPiloto } from "@/hooks/usePiloto"
 import {
   useConversa,
   useConversaMutations,
@@ -32,7 +33,7 @@ export function ConversaPage() {
   const [autorManual, setAutorManual] = useState<"lead" | "vendedor">("lead")
   const composerRef = useRef<HTMLTextAreaElement>(null)
 
-  const { data: lead } = useQuery({
+  const { data: lead, refetch: refetchLead } = useQuery({
     queryKey: ["lead", placeId],
     queryFn: () => httpClient.get<Lead>(`/api/leads/${encodeURIComponent(placeId)}`),
     enabled: Boolean(placeId),
@@ -44,6 +45,8 @@ export function ConversaPage() {
   const whatsappConectado = useWhatsappConectado()
   useSincronizarLead(placeId, whatsappConectado)
   const enviarWhatsapp = useEnviarWhatsapp(CANAL, placeId)
+  const assumir = useAssumirConversa()
+  const devolver = useDevolverAoPiloto()
   const capturaAtiva = Boolean(captura?.ativa) || whatsappConectado
   const { data, isLoading } = useConversa(CANAL, placeId, capturaAtiva)
   const { adicionarMensagem, removerMensagem, analisar } = useConversaMutations(CANAL, placeId)
@@ -111,10 +114,32 @@ export function ConversaPage() {
             )}
           </div>
           {whatsappConectado ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-xs font-medium text-success">
-              <CheckCircle2 className="size-3.5" />
-              WhatsApp conectado · respostas chegam aqui automaticamente
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {lead?.piloto_status === "automatico" && (
+                <>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                    <Bot className="size-3.5" />
+                    O piloto automático está conduzindo
+                  </span>
+                  <Button size="sm" variant="outline" disabled={assumir.isPending}
+                    onClick={() => assumir.mutate(placeId, { onSuccess: () => refetchLead() })}>
+                    <Hand className="size-3.5" />
+                    Assumir conversa
+                  </Button>
+                </>
+              )}
+              {lead?.piloto_status === "humano" && (
+                <Button size="sm" variant="ghost" disabled={devolver.isPending}
+                  onClick={() => devolver.mutate(placeId, { onSuccess: () => refetchLead() })}>
+                  <Bot className="size-3.5" />
+                  Devolver ao piloto
+                </Button>
+              )}
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-success/12 px-3 py-1 text-xs font-medium text-success">
+                <CheckCircle2 className="size-3.5" />
+                WhatsApp conectado
+              </span>
+            </div>
           ) : (
             <StatusCaptura estado={captura} onAbrirWhatsapp={abrirWhatsapp} />
           )}
@@ -122,7 +147,7 @@ export function ConversaPage() {
 
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
           {/* Conversa */}
-          <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
+          <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-card">
             <div className="min-h-0 flex-1 overflow-y-auto">
               {isLoading ? (
                 <div className="space-y-3 p-4">
@@ -221,13 +246,13 @@ export function ConversaPage() {
               <p className="mt-2 text-[11px] text-muted-foreground">
                 {whatsappConectado
                   ? "Nada sai sem o seu clique em Enviar. A conversa também continua no seu celular normalmente."
-                  : "O ProspectOS nunca envia mensagem sozinho: você revisa e envia pelo WhatsApp."}
+                  : "O Seriax OS nunca envia mensagem sozinho: você revisa e envia pelo WhatsApp."}
               </p>
             </div>
           </section>
 
           {/* Análise */}
-          <aside className="min-h-0 overflow-hidden rounded-xl border border-border bg-card">
+          <aside className="min-h-0 overflow-hidden rounded-2xl bg-card">
             <AnaliseConversaCard
               analise={data?.analise ?? null}
               analisando={analisar.isPending}

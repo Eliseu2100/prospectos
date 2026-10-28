@@ -53,7 +53,7 @@ export function FonteMapsCard() {
   }
 
   return (
-    <div className="flex flex-col gap-5 rounded-xl border border-border bg-card p-5">
+    <div className="flex flex-col gap-5 rounded-2xl bg-card p-5">
       <h3 className="font-medium">Escolha como os negócios serão encontrados</h3>
 
       <div className="grid gap-3 sm:grid-cols-2">

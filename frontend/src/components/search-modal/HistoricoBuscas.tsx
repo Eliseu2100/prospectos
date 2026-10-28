@@ -23,7 +23,7 @@ export function HistoricoBuscas() {
   if (buscas.length === 0) return null
 
   return (
-    <details className="group rounded-xl border border-border bg-card">
+    <details className="group rounded-2xl bg-card">
       <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-1.5 text-muted-foreground">
           <History className="size-4" />

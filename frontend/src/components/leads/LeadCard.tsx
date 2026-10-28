@@ -42,7 +42,7 @@ export function LeadCard({
       }}
       aria-label={`Abrir detalhes de ${lead.nome}`}
       className={cn(
-        "relative flex cursor-pointer flex-col gap-2 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "relative flex cursor-pointer flex-col gap-2 rounded-2xl bg-card p-4 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         vencido && "ring-2 ring-warning",
         selecionado && "ring-2 ring-primary"
       )}

@@ -15,7 +15,7 @@ export function GeminiModeloCard() {
   if (isLoading || !config) return null
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <div className="flex flex-col gap-3 rounded-2xl bg-card p-4">
       <div className="flex items-center gap-2">
         <Sparkles className="size-4 text-muted-foreground" />
         <h3 className="font-medium">Modelo do Gemini</h3>

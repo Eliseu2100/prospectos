@@ -8,7 +8,7 @@ export function SomConfigCard() {
   const { ativado, setAtivado, volume, setVolume, testarSom } = useConfigSom()
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <div className="flex flex-col gap-3 rounded-2xl bg-card p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {ativado ? (

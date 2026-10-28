@@ -50,7 +50,7 @@ export function InstagramContaCard() {
   // ---- já conectado ----
   if (data.logada) {
     return (
-      <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+      <div className="flex flex-col gap-4 rounded-2xl bg-card p-5">
         <div className="flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-2 font-medium">
             <InstagramIcon className="size-4" />
@@ -81,7 +81,7 @@ export function InstagramContaCard() {
 
   // ---- formulário de login ----
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+    <div className="flex flex-col gap-4 rounded-2xl bg-card p-5">
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-2 font-medium">
           <InstagramIcon className="size-4" />

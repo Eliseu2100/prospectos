@@ -14,6 +14,7 @@ Arquitetura dos prompts:
 import json
 import logging
 import random
+import re
 import time
 from datetime import date, datetime, timedelta
 
@@ -244,6 +245,18 @@ def saudacao_por_horario():
     if 12 <= hora < 18:
         return "Boa tarde"
     return "Boa noite"
+
+
+_REGEX_SAUDACAO = re.compile(r"\b(Bom dia|Boa tarde|Boa noite)\b", re.IGNORECASE)
+
+
+def ajustar_saudacao(texto):
+    """A copy guarda a saudação da hora em que foi GERADA; troca pela da hora do
+    ENVIO (mesma regra do ajustarSaudacao do frontend)."""
+    atual = saudacao_por_horario()
+    return _REGEX_SAUDACAO.sub(
+        lambda m: atual.lower() if m.group(0)[0].islower() else atual, texto or ""
+    )
 
 
 PERGUNTAS_DE_FECHAMENTO = [
@@ -775,6 +788,85 @@ def analisar_conversa_com_fallback(lead, mensagens):
         user,
         parser=_parsear_analise_conversa,
         descricao_log=f"analisar conversa com {lead.get('nome')}",
+        temperatura=TEMPERATURA_CLASSIFICACAO,
+        formato_json=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Piloto automático: decidir e escrever a resposta ao lead
+# ---------------------------------------------------------------------------
+
+ACOES_PILOTO = {"responder", "passar_para_humano", "encerrar"}
+
+SYSTEM_PILOTO_RESPOSTA = """Você conduz, em nome de um freelancer que cria sites, conversas de prospecção por WhatsApp com donos de pequenos negócios locais no Brasil. Você lê a conversa e decide o que fazer com a ÚLTIMA mensagem do lead.
+
+Responda SEMPRE um único objeto JSON válido, sem markdown, com EXATAMENTE estas chaves:
+- "acao": "responder", "passar_para_humano" ou "encerrar".
+- "motivo": uma frase curta explicando a decisão (vai para o painel do vendedor).
+- "resposta": o texto a enviar ao lead. Obrigatório em "responder" e "encerrar"; string vazia em "passar_para_humano".
+
+Quando usar cada ação:
+- "responder": o lead fez pergunta simples ou demonstrou curiosidade (o que é, como funciona, exemplos, prazo, se é presencial, quem é você). Responda com base APENAS nas informações da oferta fornecidas. O objetivo é avançar um passo: entender a necessidade dele ou combinar de mostrar uma prévia/conversar.
+- "passar_para_humano": o lead pediu preço ou orçamento e o valor não está nas informações da oferta; quer fechar, negociar valor, marcar reunião/ligação, mandou áudio/imagem/documento que você não consegue ler, fez pergunta técnica ou fora do escopo, está irritado, ou você não tem certeza do que responder. Na dúvida, passe para o humano.
+- "encerrar": o lead disse claramente que não tem interesse, pediu para parar, perguntou como conseguiu o número com irritação, ou disse que é engano. A resposta deve ser UMA frase curta e educada de despedida, sem insistir e sem oferecer nada.
+
+Regras da resposta:
+- Primeira pessoa do singular, tom humano, curto e natural, espelhando o tamanho e a formalidade do lead. Uma pergunta por mensagem no máximo.
+- Nunca invente preço, prazo, garantia, cliente, resultado ou dado que não esteja nas informações fornecidas.
+- Nunca diga que é uma IA, um robô ou uma mensagem automática, e nunca prometa algo que só o vendedor pode decidir.
+- Sem saudação repetida se a conversa já está em andamento. Sem emojis em excesso."""
+
+
+def montar_prompt_piloto_resposta(lead, mensagens, info_oferta):
+    dados_empresa = _bloco_dados_empresa(
+        lead.get("nome"), lead.get("categoria"), lead.get("endereco"), lead.get("nota"),
+        num_avaliacoes=lead.get("num_avaliacoes"), cidade=lead.get("cidade"),
+        instagram_url=lead.get("instagram_url"),
+    )
+    oferta = (info_oferta or "").strip() or (
+        "(o vendedor não informou preços nem prazos - se o lead perguntar valores, passe para o humano)"
+    )
+    return f"""Negócio do lead:
+{dados_empresa}
+
+Contexto do site do lead:
+{_contexto_site(lead.get("site_status"), lead.get("site_problemas"))}
+{_bloco_perfil_vendedor()}
+Informações da oferta que você PODE usar (nada além disso):
+{oferta}
+
+Conversa até agora (ordem cronológica):
+{_bloco_historico_conversa(mensagens)}
+
+Saudação correta para a hora de agora, caso precise saudar: {saudacao_por_horario()}
+
+Decida a ação para a última mensagem do lead e responda com o JSON especificado."""
+
+
+def _parsear_decisao_piloto(resposta_bruta):
+    limpa = resposta_bruta.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    dados = json.loads(limpa)
+    acao = str(dados.get("acao", "")).strip().lower()
+    if acao not in ACOES_PILOTO:
+        acao = "passar_para_humano"  # resposta fora do contrato: na dúvida, humano
+    resposta = str(dados.get("resposta", "")).strip()[:MAX_CARACTERES_RESPOSTA_SUGERIDA]
+    if acao in ("responder", "encerrar") and not resposta:
+        acao, resposta = "passar_para_humano", ""
+    return {
+        "acao": acao,
+        "motivo": str(dados.get("motivo", "")).strip()[:MAX_CARACTERES_OBJETIVO_ANALISE],
+        "resposta": resposta,
+    }
+
+
+def decidir_resposta_piloto(lead, mensagens, info_oferta=None):
+    """Retorna ({acao, motivo, resposta}, provedor, avisos)."""
+    return executar_com_fallback(
+        SYSTEM_PILOTO_RESPOSTA,
+        montar_prompt_piloto_resposta(lead, mensagens, info_oferta),
+        parser=_parsear_decisao_piloto,
+        descricao_log=f"piloto: responder {lead.get('nome')}",
         temperatura=TEMPERATURA_CLASSIFICACAO,
         formato_json=True,
     )

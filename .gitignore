@@ -11,3 +11,6 @@ release-*.md
 
 # saida compilada do instalador (85MB+, gerada por iscc)
 instalador/saida/
+
+# trabalho do Higgsfield Brandkit (logos candidatos, estado)
+brandkit/

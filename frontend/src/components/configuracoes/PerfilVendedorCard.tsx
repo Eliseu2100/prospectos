@@ -29,7 +29,7 @@ export function PerfilVendedorCard() {
   }
 
   return (
-    <div className="space-y-4 rounded-xl border border-border bg-card p-4">
+    <div className="space-y-4 rounded-2xl bg-card p-4">
       <div className="flex items-center gap-2">
         <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <UserRound className="size-4" />

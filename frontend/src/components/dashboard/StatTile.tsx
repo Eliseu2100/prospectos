@@ -9,7 +9,7 @@ interface StatTileProps {
 
 export function StatTile({ rotulo, valor, icone, variante = "default" }: StatTileProps) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition-colors hover:bg-accent/30">
+    <div className="flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 transition-colors hover:bg-accent/30">
       {icone && (
         <div
           className={cn(

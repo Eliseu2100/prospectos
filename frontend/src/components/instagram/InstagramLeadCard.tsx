@@ -52,7 +52,7 @@ export function InstagramLeadCard({
         if (e.key === "Enter" || e.key === " ") onAbrirDetalhe()
       }}
       className={cn(
-        "relative flex cursor-pointer flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-accent/40",
+        "relative flex cursor-pointer flex-col gap-3 rounded-2xl bg-card p-4 transition-colors hover:bg-accent/40",
         vencido && "ring-2 ring-warning",
         selecionado && "ring-2 ring-primary"
       )}

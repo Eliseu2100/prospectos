@@ -41,7 +41,7 @@ function LinhaFollowup({
   desabilitado: boolean
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3 shadow-sm">
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card p-3">
       {tarefa.canal === "instagram" ? (
         <InstagramIcon className="size-4 shrink-0 text-instagram-mid" />
       ) : (
@@ -110,7 +110,7 @@ function LinhaLeadQuente({
   desabilitado: boolean
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3 shadow-sm">
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card p-3">
       <span
         className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary"
         title="Score de prioridade"
