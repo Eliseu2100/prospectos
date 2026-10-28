@@ -15,7 +15,7 @@ para um lead só, quando a conversa está aberta na tela.
 
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import db
 import mensageiros
@@ -25,6 +25,9 @@ from rotas_conversa import _inserir_mensagem, _variantes_telefone
 logger = logging.getLogger(__name__)
 
 INTERVALO_SINCRONIZACAO_SEGUNDOS = 45
+# só avisa de mensagens recentes - a primeira sincronização importa o histórico
+# antigo e não pode virar uma enxurrada de notificações
+JANELA_AVISO_MINUTOS = 30
 MAX_LEADS_POR_SINCRONIZACAO = 300
 MENSAGENS_POR_CONVERSA = 100
 STATUS_QUE_VIRAM_RESPONDEU = {"novo", "contatado"}
@@ -85,6 +88,7 @@ def sincronizar_lead(conexao, lead):
     novas = 0
     novas_do_lead = 0
     novas_minhas = 0
+    ultima_do_lead = None  # (enviada_em, texto) da mensagem nova mais recente do lead
     vistos = set()
 
     for jid in jids_do_lead(lead):
@@ -104,6 +108,9 @@ def sincronizar_lead(conexao, lead):
                 novas += 1
                 if autor == "lead":
                     novas_do_lead += 1
+                    enviada_em = _data_iso(registro)
+                    if ultima_do_lead is None or enviada_em > ultima_do_lead[0]:
+                        ultima_do_lead = (enviada_em, texto)
                 else:
                     novas_minhas += 1
 
@@ -111,6 +118,13 @@ def sincronizar_lead(conexao, lead):
     # automático sai da conversa (as do app têm a mesma chave e não entram aqui)
     if novas_minhas and lead.get("piloto_status") == "automatico":
         conexao.execute("UPDATE leads SET piloto_status = 'humano' WHERE place_id = ?", (place_id,))
+
+    # lead que está com você (não com o piloto) respondeu agora: avisa
+    if ultima_do_lead and lead.get("piloto_status") != "automatico":
+        limite = (datetime.now() - timedelta(minutes=JANELA_AVISO_MINUTOS)).isoformat(timespec="seconds")
+        if ultima_do_lead[0] >= limite:
+            nome = lead.get("nome") or "Um lead"
+            mensageiros.avisar_vendedor(f"💬 {nome} respondeu no WhatsApp:\n“{ultima_do_lead[1][:300]}”")
 
     if novas_do_lead and lead.get("status") in STATUS_QUE_VIRAM_RESPONDEU:
         agora = datetime.now().isoformat(timespec="seconds")
@@ -131,7 +145,7 @@ def leads_em_conversa(conexao):
     """Leads com telefone que já saíram do 'novo' ou já têm mensagem no histórico."""
     linhas = conexao.execute(
         """
-        SELECT place_id, telefone, status, whatsapp_jid, piloto_status FROM leads
+        SELECT place_id, nome, telefone, status, whatsapp_jid, piloto_status FROM leads
         WHERE telefone IS NOT NULL AND telefone != '' AND status != 'ignorado'
           AND (status != 'novo' OR place_id IN
                (SELECT lead_ref FROM mensagens_conversa WHERE canal = 'maps'))

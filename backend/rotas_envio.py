@@ -84,6 +84,10 @@ def obter_config_envio():
             "token_mascarado": mascarar_chave(token_telegram),
             "chat_id": db.obter_config("telegram_chat_id") or "",
         },
+        "avisos": {
+            "whatsapp_numero": db.obter_config("aviso_whatsapp_numero") or "",
+            "telegram_pronto": bool(token_telegram and db.obter_config("telegram_chat_id")),
+        },
         "gemini": {
             "modelo": ia.modelo_gemini(),
             "opcoes": [{"valor": v, "rotulo": r} for v, r in ia.MODELOS_GEMINI.items()],
@@ -127,6 +131,34 @@ def salvar_config_telegram():
     if chat_id:
         db.salvar_config("telegram_chat_id", chat_id)
     return jsonify({"ok": True})
+
+
+@bp.route("/api/envio/config/avisos", methods=["POST"])
+def salvar_config_avisos():
+    """Número de WhatsApp que recebe os avisos (vazio desliga esse canal).
+    Avisa quando o número é o mesmo conectado na Evolution: mensagem enviada
+    por você mesmo não toca no celular, então o aviso passaria despercebido."""
+    bruto = str((request.json or {}).get("whatsapp_numero", "")).strip()
+    numero = mensageiros.numero_internacional(bruto) if bruto else ""
+    if bruto and (not numero or len(numero) < 12):
+        return jsonify({"erro": "número inválido - use DDD + número, ex.: 11 91234-5678"}), 400
+    db.salvar_config("aviso_whatsapp_numero", numero)
+
+    mesmo_numero = False
+    if numero:
+        try:
+            mesmo_numero = mensageiros.numero_conectado() == numero
+        except mensageiros.ErroEnvio:
+            pass
+    return jsonify({"ok": True, "whatsapp_numero": numero, "mesmo_numero_conectado": mesmo_numero})
+
+
+@bp.route("/api/envio/aviso/teste", methods=["POST"])
+def testar_aviso():
+    canais = mensageiros.avisar_vendedor("🔔 Teste do Seriax OS: é assim que você vai saber quando um cliente precisar de você.")
+    if not canais:
+        return jsonify({"erro": "Nenhum canal de aviso funcionou. Configure o Telegram ou um número de WhatsApp."}), 400
+    return jsonify({"ok": True, "canais": canais})
 
 
 @bp.route("/api/envio/config/gemini-modelo", methods=["POST"])

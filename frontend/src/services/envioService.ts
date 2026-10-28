@@ -16,6 +16,10 @@ export interface ConfigEnvio {
     token_mascarado: string | null
     chat_id: string
   }
+  avisos: {
+    whatsapp_numero: string
+    telegram_pronto: boolean
+  }
   gemini: {
     modelo: string
     opcoes: { valor: string; rotulo: string }[]
@@ -87,6 +91,14 @@ export const envioService = {
     ),
 
   caixa: () => httpClient.get<CaixaWhatsapp>("/api/envio/whatsapp/caixa"),
+
+  salvarAvisos: (whatsappNumero: string) =>
+    httpClient.post<{ ok: true; whatsapp_numero: string; mesmo_numero_conectado: boolean }>(
+      "/api/envio/config/avisos",
+      { whatsapp_numero: whatsappNumero }
+    ),
+
+  testarAviso: () => httpClient.post<{ ok: true; canais: string[] }>("/api/envio/aviso/teste"),
 
   detectarChatTelegram: () =>
     httpClient.post<{ ok: true; chat_id: string; nome: string }>("/api/envio/telegram/detectar-chat"),

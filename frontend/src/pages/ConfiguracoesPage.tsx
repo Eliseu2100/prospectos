@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Header } from "@/components/layout/Header"
 import { Skeleton } from "@/components/ui/skeleton"
+import { AvisosCard } from "@/components/configuracoes/AvisosCard"
 import { FonteMapsCard } from "@/components/configuracoes/FonteMapsCard"
 import { GeminiModeloCard } from "@/components/configuracoes/GeminiModeloCard"
 import { TelegramCard } from "@/components/configuracoes/TelegramCard"
@@ -53,9 +54,9 @@ export function ConfiguracoesPage() {
           </h2>
           <p className="text-sm text-muted-foreground">
             As chaves abaixo são usadas para gerar mensagens por IA. O sistema
-            tenta cada provedor na ordem Gemini → Groq → Claude → NVIDIA, e
+            tenta cada provedor na ordem Gemini → Claude → Groq → NVIDIA, e
             passa para o próximo automaticamente se algum falhar ou ficar sem
-            cota. O Claude é pago, mas só é usado quando os gratuitos falham.
+            cota. O Claude é pago, mas só é usado quando o Gemini falha.
           </p>
         </div>
 
@@ -97,6 +98,7 @@ export function ConfiguracoesPage() {
         </div>
 
         <WhatsappEnvioCard />
+        <AvisosCard />
         <TelegramCard />
 
         <div>

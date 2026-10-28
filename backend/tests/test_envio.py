@@ -398,3 +398,71 @@ class TestCaixaDeEntrada:
         assert por_lead["p2"]["ja_respondeu"] is False
         # mais recente primeiro
         assert [c["place_id"] for c in conversas_caixa] == ["p2", "p1"]
+
+
+# ---------------------------------------------------------------------------
+# Avisos para o vendedor (Telegram e/ou WhatsApp)
+# ---------------------------------------------------------------------------
+
+class TestAvisos:
+    def test_avisa_por_whatsapp_no_numero_configurado(self, cliente, http, evolution_configurada):
+        resposta = cliente.post("/api/envio/config/avisos", json={"whatsapp_numero": "(11) 91234-5678"})
+        assert resposta.get_json()["whatsapp_numero"] == "5511912345678"
+        assert mensageiros.avisar_vendedor("oi") == ["whatsapp"]
+        assert http.chamadas[-1]["json"] == {"number": "5511912345678", "text": "oi"}
+
+    def test_detecta_mesmo_numero_conectado(self, cliente, http, evolution_configurada, monkeypatch):
+        monkeypatch.setattr(mensageiros, "numero_conectado", lambda: "5511912345678")
+        resposta = cliente.post("/api/envio/config/avisos", json={"whatsapp_numero": "11912345678"})
+        assert resposta.get_json()["mesmo_numero_conectado"] is True
+
+    def test_numero_invalido(self, cliente):
+        assert cliente.post("/api/envio/config/avisos", json={"whatsapp_numero": "123"}).status_code == 400
+
+    def test_sem_canal_o_teste_avisa(self, cliente):
+        assert cliente.post("/api/envio/aviso/teste").status_code == 400
+
+    def test_falha_no_aviso_nao_levanta(self, banco, monkeypatch):
+        db.salvar_config("aviso_whatsapp_numero", "5511912345678")
+        monkeypatch.setattr(mensageiros, "enviar_whatsapp",
+                            lambda *a: (_ for _ in ()).throw(mensageiros.ErroEnvio("fora do ar")))
+        assert mensageiros.avisar_vendedor("oi") == []
+
+
+class TestAvisoDeResposta:
+    def _lead_com_resposta(self, conversas, minutos_atras, piloto_status=None):
+        from datetime import datetime, timedelta
+        criar_lead(status="contatado")
+        if piloto_status:
+            conexao = db.conectar()
+            try:
+                conexao.execute("UPDATE leads SET piloto_status = ?", (piloto_status,))
+                conexao.commit()
+            finally:
+                conexao.close()
+        ts = int((datetime.now() - timedelta(minutes=minutos_atras)).timestamp())
+        conversas["5565996757327@s.whatsapp.net"] = [registro_wa("R", "Quanto custa?", ts=ts)]
+
+    def test_lead_com_voce_respondeu_agora_avisa(self, cliente, evolution_com_mensagens, monkeypatch):
+        avisos = []
+        monkeypatch.setattr(mensageiros, "avisar_vendedor", avisos.append)
+        conversas, _ = evolution_com_mensagens
+        self._lead_com_resposta(conversas, minutos_atras=2)
+        cliente.post("/api/envio/whatsapp/sincronizar")
+        assert len(avisos) == 1 and "Quanto custa?" in avisos[0] and "Estética Vitá" in avisos[0]
+
+    def test_historico_antigo_nao_avisa(self, cliente, evolution_com_mensagens, monkeypatch):
+        avisos = []
+        monkeypatch.setattr(mensageiros, "avisar_vendedor", avisos.append)
+        conversas, _ = evolution_com_mensagens
+        self._lead_com_resposta(conversas, minutos_atras=600)
+        cliente.post("/api/envio/whatsapp/sincronizar")
+        assert avisos == []
+
+    def test_lead_com_o_piloto_nao_avisa_aqui(self, cliente, evolution_com_mensagens, monkeypatch):
+        avisos = []
+        monkeypatch.setattr(mensageiros, "avisar_vendedor", avisos.append)
+        conversas, _ = evolution_com_mensagens
+        self._lead_com_resposta(conversas, minutos_atras=2, piloto_status="automatico")
+        cliente.post("/api/envio/whatsapp/sincronizar")
+        assert avisos == []  # o piloto responde; só avisa se passar pra você

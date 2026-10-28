@@ -90,12 +90,9 @@ def estado():
     return dict(_estado)
 
 
-def _avisar_telegram(texto):
-    """Aviso opcional - se o Telegram não estiver configurado, segue em silêncio."""
-    try:
-        mensageiros.enviar_telegram(texto)
-    except mensageiros.ErroEnvio:
-        pass
+def _avisar(texto):
+    """Telegram e/ou WhatsApp do vendedor - o que estiver configurado."""
+    mensageiros.avisar_vendedor(texto)
 
 
 # ---------------------------------------------------------------------------
@@ -256,7 +253,7 @@ def _passar_para_humano(conexao, lead, motivo):
     conexao.execute("UPDATE leads SET piloto_status = 'humano' WHERE place_id = ?", (lead["place_id"],))
     registrar_evento(conexao, "passou_para_voce", lead["place_id"], lead["nome"], motivo)
     conexao.commit()
-    _avisar_telegram(f"🙋 {lead['nome']} precisa de você no WhatsApp.\nMotivo: {motivo}")
+    _avisar(f"🙋 {lead['nome']} precisa de você no WhatsApp.\nMotivo: {motivo}")
 
 
 def combinar_previa(conexao, lead, resposta):
@@ -274,7 +271,7 @@ def combinar_previa(conexao, lead, resposta):
     )
     registrar_evento(conexao, "previa_combinada", lead["place_id"], lead["nome"],
                      f"Entregar {falado} ({data_entrega.strftime('%d/%m')}). Mensagem: {resposta}")
-    _avisar_telegram(f"🎨 Prévia combinada com {lead['nome']} para {falado} "
+    _avisar(f"🎨 Prévia combinada com {lead['nome']} para {falado} "
                      f"({data_entrega.strftime('%d/%m')}). Bora montar o site!")
 
 

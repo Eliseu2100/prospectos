@@ -192,3 +192,37 @@ def enviar_telegram(texto, chat_id=None):
     if not chat_id:
         raise ErroEnvio("Chat do Telegram não definido. Mande /start pro bot e clique em 'Detectar chat'.")
     _telegram("sendMessage", {"chat_id": chat_id, "text": texto})
+
+
+def numero_conectado():
+    """Número do WhatsApp conectado na Evolution (só dígitos, com DDI) ou None."""
+    _, _, instancia = config_evolution()
+    dados = _evolution("GET", f"/instance/fetchInstances?instanceName={instancia}")
+    instancia_info = dados[0] if isinstance(dados, list) and dados else dados
+    jid = (instancia_info or {}).get("ownerJid") or ""
+    return re.sub(r"\D", "", jid.split("@")[0]) or None
+
+
+# ---------------------------------------------------------------------------
+# Avisos para o vendedor (lead respondeu, precisa de você, prévia combinada)
+# ---------------------------------------------------------------------------
+
+def avisar_vendedor(texto):
+    """Manda o aviso por todos os canais configurados: Telegram e/ou WhatsApp
+    num número do vendedor. Nunca levanta exceção - aviso não pode derrubar o
+    piloto. Retorna a lista de canais que funcionaram."""
+    canais = []
+    if db.obter_config("telegram_bot_token") and db.obter_config("telegram_chat_id"):
+        try:
+            enviar_telegram(texto)
+            canais.append("telegram")
+        except ErroEnvio as erro:
+            logger.warning("aviso pelo Telegram falhou: %s", erro)
+    numero = (db.obter_config("aviso_whatsapp_numero") or "").strip()
+    if numero:
+        try:
+            enviar_whatsapp(numero, texto)
+            canais.append("whatsapp")
+        except ErroEnvio as erro:
+            logger.warning("aviso pelo WhatsApp falhou: %s", erro)
+    return canais

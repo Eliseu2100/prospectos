@@ -159,3 +159,30 @@ export function useSincronizarTodos() {
     onError: (erro: Error) => toast.error(erro.message),
   })
 }
+
+export function useSalvarAvisos() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (numero: string) => envioService.salvarAvisos(numero),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: CHAVE_CONFIG })
+      if (res.mesmo_numero_conectado) {
+        toast.warning(
+          "Esse é o mesmo número conectado no Seriax OS. O WhatsApp não toca para mensagens que você manda para você mesmo: use outro número ou o Telegram.",
+          { duration: 10000 }
+        )
+      } else {
+        toast.success(res.whatsapp_numero ? "Número de aviso salvo." : "Aviso por WhatsApp desligado.")
+      }
+    },
+    onError: (erro: Error) => toast.error(erro.message),
+  })
+}
+
+export function useTestarAviso() {
+  return useMutacaoComToast(
+    () => envioService.testarAviso(),
+    (res) => `Aviso de teste enviado por: ${res.canais.join(" e ")}.`,
+    []
+  )
+}

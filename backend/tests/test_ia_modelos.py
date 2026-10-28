@@ -121,7 +121,7 @@ def test_claude_recusa_vira_erro_para_o_fallback(monkeypatch):
         ia.claude_gerar_mensagem("sys", "user")
 
 
-def test_claude_so_entra_depois_dos_gratuitos(monkeypatch):
+def test_claude_e_o_segundo_depois_do_gemini(monkeypatch):
     chamados = []
 
     def falha(nome):
@@ -142,4 +142,4 @@ def test_claude_so_entra_depois_dos_gratuitos(monkeypatch):
 
     resultado, provedor, _avisos = ia.executar_com_fallback("s", "u")
     assert (resultado, provedor) == ("resposta do claude", "claude")
-    assert chamados == ["gemini", "groq", "claude"]
+    assert chamados == ["gemini", "claude"]  # a Groq nem é chamada
