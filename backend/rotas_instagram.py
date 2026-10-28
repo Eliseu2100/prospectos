@@ -871,6 +871,33 @@ def encerrar_sessao_instagram():
     return jsonify({"ok": True})
 
 
+def traduzir_erro_login_instagram(tipo, mensagem, erro, usuario):
+    """Transforma a recusa do Instagram numa instrução que o usuário consegue seguir."""
+    explicacao = _explicar_erro_login_instagram(f"{tipo} {mensagem} {erro}".lower(), mensagem, erro)
+    if "@" in usuario:
+        explicacao += " Dica: tente com o NOME DE USUÁRIO do perfil (ex.: seu.perfil) em vez do e-mail."
+    return explicacao
+
+
+def _explicar_erro_login_instagram(texto, mensagem, erro):
+    if "bad_password" in texto or "password you entered is incorrect" in texto:
+        return ("O Instagram disse que a senha está incorreta. Se a senha está certa, ele pode estar "
+                "bloqueando login fora do app: abra o Instagram no celular, veja se pediu para confirmar "
+                "\"fui eu\", e tente de novo daqui a alguns minutos.")
+    if "invalid_user" in texto or "find an account" in texto:
+        return "O Instagram não encontrou esse nome de usuário. Confira como ele aparece no seu perfil."
+    if "challenge" in texto or "checkpoint" in texto:
+        return ("O Instagram pediu uma verificação de segurança. Abra o app do Instagram no celular, "
+                "confirme que foi você (\"Fui eu\") e tente de novo aqui.")
+    if "wait a few minutes" in texto or "rate_limit" in texto or "please wait" in texto:
+        return "Muitas tentativas seguidas. O Instagram pediu para esperar alguns minutos antes de tentar de novo."
+    if "ip_block" in texto or "sentry_block" in texto or "blacklist" in texto:
+        return ("O Instagram bloqueou temporariamente logins vindos desta internet. Tente mais tarde ou "
+                "use outra rede (ex.: hotspot do celular).")
+    detalhe = mensagem or str(erro) or type(erro).__name__
+    return f"O Instagram recusou o login: {detalhe}"
+
+
 @bp.route("/api/instagram/login", methods=["POST"])
 def login_instagram():
     """Login pela interface. Se o Instagram exigir 2FA, responde precisa_2fa=True
@@ -899,9 +926,14 @@ def login_instagram():
     except TwoFactorRequired:
         return jsonify({"precisa_2fa": True})
     except Exception as erro:
-        # não logamos a senha em nenhuma hipótese; o tipo do erro basta pro diagnóstico
-        logger.warning("login do instagram falhou para @%s (%s)", usuario, type(erro).__name__)
-        return jsonify({"erro": f"O Instagram recusou o login: {erro}"}), 400
+        # o motivo real vem no JSON da resposta do Instagram (last_json); a senha
+        # nunca está nele e nunca é logada
+        resposta = getattr(cliente, "last_json", None) or {}
+        tipo = str(resposta.get("error_type") or "")
+        mensagem = str(resposta.get("message") or "")
+        logger.warning("login do instagram falhou para @%s (%s) error_type=%r message=%r",
+                       usuario, type(erro).__name__, tipo, mensagem[:200])
+        return jsonify({"erro": traduzir_erro_login_instagram(tipo, mensagem, erro, usuario)}), 400
 
     pasta = _pasta_sessao_instagram()
     pasta.mkdir(parents=True, exist_ok=True)

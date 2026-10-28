@@ -39,6 +39,8 @@ iniciar.bat
 copy .env.example .env   &&   docker compose up -d
 ```
 
+`app.py` calls `truststore.inject_into_ssl()` before anything else, so Python trusts the Windows certificate store. Kaspersky on this machine intercepts HTTPS with its own root CA; without truststore, `requests` calls fail at random with "self-signed certificate in certificate chain". Verification stays on. Note that api.telegram.org is blocked on this network at the TCP level, which truststore cannot fix.
+
 `google-maps-scraper.exe` (from gosom/google-maps-scraper) is not committed. It must sit next to `backend/app.py` for the scraper source of the Google Maps channel. The official Places API is the alternative source.
 
 ## Architecture

@@ -440,3 +440,31 @@ class TestUsernameUnico:
 
         with pytest.raises(sqlite3.IntegrityError):
             inserir_lead_instagram("mesma_pessoa", post_b)
+
+
+# ---------------------------------------------------------------------------
+# Login: o motivo real da recusa do Instagram vira instrução clara
+# ---------------------------------------------------------------------------
+
+import rotas_instagram
+
+
+class TestErroLoginInstagram:
+    def traduzir(self, tipo="", mensagem="", usuario="meu.perfil"):
+        return rotas_instagram.traduzir_erro_login_instagram(tipo, mensagem, Exception("x"), usuario)
+
+    def test_senha_incorreta(self):
+        assert "senha está incorreta" in self.traduzir("bad_password", "The password you entered is incorrect.")
+
+    def test_verificacao_de_seguranca(self):
+        assert "Fui eu" in self.traduzir("checkpoint_challenge_required", "challenge_required")
+
+    def test_muitas_tentativas(self):
+        assert "esperar" in self.traduzir("", "Please wait a few minutes before you try again.")
+
+    def test_email_ganha_dica_de_usuario(self):
+        texto = self.traduzir("bad_password", "", usuario="eu@gmail.com")
+        assert "senha" in texto and "NOME DE USUÁRIO" in texto
+
+    def test_desconhecido_mostra_mensagem_do_instagram(self):
+        assert "algo novo" in self.traduzir("", "algo novo")

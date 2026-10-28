@@ -19,6 +19,19 @@ O código está dividido por responsabilidade:
     processar.py        - pipeline do CSV do scraper + schema/migrações
 """
 
+# Antes de qualquer conexão HTTPS: o Python passa a confiar nos mesmos
+# certificados que o Windows. Antivírus como o Kaspersky inspecionam conexões
+# criptografadas com um certificado próprio (instalado no Windows, mas não na
+# lista do Python) - sem isto, chamadas a Claude/Groq/Instagram falham ao acaso
+# com "self-signed certificate in certificate chain". A verificação continua
+# ligada; só muda a lista de autoridades confiáveis.
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 import logging
 import os
 import sqlite3

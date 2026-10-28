@@ -3,6 +3,7 @@ waitress==3.0.2
 google-genai==2.10.0
 openai==2.44.0
 anthropic==2.3.0
+truststore==0.10.4
 python-dotenv==1.2.2
 keyring==25.6.0
 fpdf2==2.8.7
