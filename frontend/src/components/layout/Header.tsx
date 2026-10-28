@@ -74,10 +74,19 @@ export function Header({ onNovaBusca, onVerIgnorados }: HeaderProps) {
               <span className="hidden sm:inline">Ignorados</span>
             </Button>
           )}
-          {onNovaBusca && (
-            <Button size="sm" onClick={onNovaBusca}>
+          {/* Nova busca em todas as telas: na de leads abre o modal ali mesmo;
+              nas outras leva pra lá já com o modal aberto (?nova-busca=1) */}
+          {onNovaBusca ? (
+            <Button size="sm" onClick={onNovaBusca} className="ml-1">
               <Plus className="size-4" />
-              <span className="hidden sm:inline">Nova busca</span>
+              <span className="hidden md:inline">Nova busca</span>
+            </Button>
+          ) : (
+            <Button size="sm" asChild className="ml-1">
+              <Link to="/leads?nova-busca=1" aria-label="Nova busca de clientes">
+                <Plus className="size-4" />
+                <span className="hidden md:inline">Nova busca</span>
+              </Link>
             </Button>
           )}
           <ItemNav

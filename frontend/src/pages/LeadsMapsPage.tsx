@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, Download } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { Header } from "@/components/layout/Header"
 import { Button } from "@/components/ui/button"
 import { GoogleMapsBanner } from "@/components/leads/GoogleMapsBanner"
@@ -41,6 +41,16 @@ export function LeadsMapsPage() {
   const [buscaMinimizada, setBuscaMinimizada] = useState(false)
   const busca = useBusca()
   const { resultadoFinal } = busca
+
+  // atalhos "Nova busca" (cabeçalho de qualquer tela, Dashboard) chegam com
+  // ?nova-busca=1: abre o modal direto e limpa o parâmetro da URL
+  const [parametros, setParametros] = useSearchParams()
+  useEffect(() => {
+    if (parametros.get("nova-busca")) {
+      setModalBuscaAberto(true)
+      setParametros({}, { replace: true })
+    }
+  }, [parametros, setParametros])
 
   useEffect(() => {
     if (resultadoFinal && buscaMinimizada) {
