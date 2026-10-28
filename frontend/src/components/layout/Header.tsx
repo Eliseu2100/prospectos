@@ -45,7 +45,7 @@ export function Header({ onNovaBusca, onVerIgnorados }: HeaderProps) {
     <header className="sticky top-0 z-20 border-b border-border bg-background/75 backdrop-blur-xl backdrop-saturate-150">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link to="/" className="flex items-center gap-2" aria-label="Seriax OS - início">
-          <img src="/logo-icon.svg" alt="" className="size-8" />
+          <img src="/logo-icon.svg" alt="" className="size-8 rounded-[9px] ring-1 ring-black/5 dark:ring-white/10" />
           <h1 className="text-[17px] font-semibold tracking-tight">
             Seriax <span className="text-muted-foreground">OS</span>
           </h1>

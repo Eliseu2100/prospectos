@@ -1,8 +1,10 @@
 <div align="center">
 
-<img src="frontend/public/logo-icon.svg" width="96" alt="ProspectOS logo" />
+<img src="frontend/public/logo-icon.svg" width="96" alt="Seriax OS logo" />
 
-# ProspectOS
+# Seriax OS
+
+<sub>Baseado no <a href="https://github.com/nando0x/ProspectOS">ProspectOS</a> (MIT), com piloto automático, WhatsApp integrado e visual novo.</sub>
 
 ### Prospecção de leads no piloto automático: do Google Maps e Instagram direto pro seu CRM
 
@@ -98,6 +100,8 @@ Leia isto com atenção antes de rodar qualquer coisa:
 | 📊 **CRM visual + Kanban** | Funil de status com histórico, drag-and-drop, tags, observações e follow-up com cadência crescente (+3/+5/+7 dias) |
 | 📈 **Analytics** | Funil de conversão e desempenho por nicho, para os dois canais separados e combinados |
 | 🧰 **Produtividade** | Filtros (inclusive por situação do site), histórico de buscas, busca global (Ctrl+K), exportação CSV, ações em lote, tema claro/escuro |
+| 🤖 **Piloto automático** | Escolha uma área (nicho + cidade): ele manda o primeiro contato para os leads de maior score, em ritmo humano e só no horário comercial, responde às dúvidas simples e passa para você quando o cliente pede preço, quer fechar ou não tem interesse |
+| 💬 **WhatsApp dentro do app** | Caixa de entrada que separa quem respondeu de quem não respondeu; as respostas chegam sozinhas e você conversa sem sair da ferramenta |
 | 📤 **Envio direto pelo WhatsApp** | Com a [Evolution API](https://github.com/EvolutionAPI/evolution-api) rodando local (Docker), envia a mensagem do lead em um clique, grava no histórico da conversa, marca o lead como contatado e respeita um **limite diário** pra proteger seu número |
 | ✈️ **Telegram** | Bot próprio (via @BotFather) que manda pra você o **resumo do dia**: follow-ups pendentes, leads novos e envios |
 | 🤖 **Gemini Flash ou Pro** | Escolha em Configurações qual modelo do Gemini gera as mensagens e analisa as conversas |
