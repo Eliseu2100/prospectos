@@ -339,7 +339,7 @@ function Formulario({ dados }: { dados: PainelPiloto }) {
       <Secao
         numero={1}
         titulo="Área"
-        descricao="Que tipo de negócio e em qual cidade. O piloto escolhe sozinho os leads com melhor score dessa área."
+        descricao="Que tipo de negócio e em qual cidade. O piloto escolhe sozinho os leads com melhor score dessa área, só os que não têm site."
       >
         <div className="grid gap-4 sm:grid-cols-[1fr_1fr_140px]">
           <div className="space-y-1.5">

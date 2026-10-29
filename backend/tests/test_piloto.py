@@ -145,6 +145,15 @@ class TestFila:
             conexao.close()
         assert [l["place_id"] for l in fila] == ["forte", "fraco"]
 
+    def test_so_chama_quem_nao_tem_site(self, banco):
+        criar_lead("sem", site_status="sem_site")
+        criar_lead("ruim", site_status="site_ruim", nota=5.0, avaliacoes=500)
+        conexao = db.conectar()
+        try:
+            assert [l["place_id"] for l in piloto.proximos_leads(conexao, piloto.CONFIG_PADRAO)] == ["sem"]
+        finally:
+            conexao.close()
+
     def test_score_minimo(self, banco):
         criar_lead("fraco", nota=4.0, avaliacoes=2, site_status="site_ok")
         conexao = db.conectar()
@@ -384,6 +393,16 @@ class TestFollowup:
         conexao = db.conectar()
         try:
             assert bool(piloto.leads_para_followup(conexao, SEGUNDA_10H)) is vence
+        finally:
+            conexao.close()
+
+    def test_site_ruim_nao_recebe_followup(self, banco):
+        contatado_pelo_piloto(dias_atras=2)
+        conexao = db.conectar()
+        try:
+            conexao.execute("UPDATE leads SET site_status = 'site_ruim'")
+            conexao.commit()
+            assert piloto.leads_para_followup(conexao, SEGUNDA_10H) == []
         finally:
             conexao.close()
 

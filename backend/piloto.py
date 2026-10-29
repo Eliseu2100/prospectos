@@ -37,6 +37,9 @@ from rotas_conversa import _listar_mensagens
 logger = logging.getLogger(__name__)
 
 INTERVALO_LACO_SEGUNDOS = 20
+# o piloto só aborda negócio SEM site (decisão do vendedor em 29/10: site ruim
+# não é chamado); os de site ruim já contatados também não recebem follow-up
+SITUACAO_SITE_ALVO = "sem_site"
 # espera mínima após a mensagem do lead antes de responder (resposta instantânea soa robô)
 ATRASO_MINIMO_RESPOSTA_SEGUNDOS = 45
 
@@ -133,11 +136,12 @@ def proximos_leads(conexao, cfg, limite=5):
 
     condicoes = [
         "status = 'novo'",
+        "site_status = ?",
         "telefone IS NOT NULL AND telefone != ''",
         "piloto_status IS NULL",
         f"{SQL_SCORE} >= ?",
     ]
-    parametros = [_int(cfg, "piloto_score_min")]
+    parametros = [SITUACAO_SITE_ALVO, _int(cfg, "piloto_score_min")]
     if cfg["piloto_nicho"].strip():
         condicoes.append("LOWER(COALESCE(nicho, '') || ' ' || COALESCE(categoria, '')) LIKE ?")
         parametros.append(f"%{cfg['piloto_nicho'].strip().lower()}%")
@@ -246,12 +250,12 @@ def leads_para_followup(conexao, agora=None):
                (SELECT MAX(enviada_em) FROM mensagens_conversa
                  WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor') AS ultimo_envio_em
         FROM leads l
-        WHERE l.piloto_status = 'automatico' AND l.status = 'contatado'
+        WHERE l.piloto_status = 'automatico' AND l.status = 'contatado' AND l.site_status = ?
           AND COALESCE(l.follow_ups_enviados, 0) < ?
           AND NOT EXISTS (SELECT 1 FROM mensagens_conversa
                            WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'lead' AND automatica = 0)
         """,
-        (len(abordagem.CADENCIA_FOLLOWUP_DIAS),),
+        (SITUACAO_SITE_ALVO, len(abordagem.CADENCIA_FOLLOWUP_DIAS)),
     ).fetchall()
 
     vencidos = []
@@ -331,12 +335,12 @@ def leads_com_robo(conexao, agora=None):
             SELECT id FROM mensagens_conversa
             WHERE canal = 'maps' AND lead_ref = l.place_id
             ORDER BY enviada_em DESC, id DESC LIMIT 1)
-        WHERE l.piloto_status = 'automatico' AND l.status = 'contatado'
+        WHERE l.piloto_status = 'automatico' AND l.status = 'contatado' AND l.site_status = ?
           AND m.autor = 'lead' AND m.automatica = 1 AND m.enviada_em <= ?
           AND NOT EXISTS (SELECT 1 FROM piloto_eventos e
                            WHERE e.place_id = l.place_id AND e.tipo = 'recado_robo')
         """,
-        (limite,),
+        (SITUACAO_SITE_ALVO, limite),
     ).fetchall()
     return [dict(linha) for linha in linhas]
 
