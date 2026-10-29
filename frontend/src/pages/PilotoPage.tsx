@@ -12,6 +12,7 @@ import {
   Pause,
   Play,
   Power,
+  Repeat,
   Reply,
   Search,
   Send,
@@ -38,6 +39,8 @@ import type { ConfigPiloto, EventoPiloto, PainelPiloto } from "@/services/piloto
 
 const ICONE_EVENTO: Record<EventoPiloto["tipo"], { icone: React.ReactNode; rotulo: string; cor: string }> = {
   contato_enviado: { icone: <Send className="size-3.5" />, rotulo: "Primeiro contato enviado", cor: "text-primary" },
+  followup_enviado: { icone: <Repeat className="size-3.5" />, rotulo: "Follow-up enviado", cor: "text-primary" },
+  recado_robo: { icone: <Bot className="size-3.5" />, rotulo: "Robô respondeu: pediu o contato do dono", cor: "text-primary" },
   resposta_enviada: { icone: <Reply className="size-3.5" />, rotulo: "Respondeu automaticamente", cor: "text-primary" },
   previa_combinada: { icone: <Palette className="size-3.5" />, rotulo: "Prévia combinada", cor: "text-success" },
   passou_para_voce: { icone: <Hand className="size-3.5" />, rotulo: "Passou a conversa para você", cor: "text-warning" },
@@ -323,6 +326,8 @@ function Formulario({ dados }: { dados: PainelPiloto }) {
       piloto_info_oferta: cfg.piloto_info_oferta,
       piloto_auto_resposta: cfg.piloto_auto_resposta === "1",
       piloto_fim_de_semana: cfg.piloto_fim_de_semana === "1",
+      piloto_followup: cfg.piloto_followup === "1",
+      piloto_recado_robo: cfg.piloto_recado_robo === "1",
     })
 
   const area = [cfg.piloto_nicho.trim(), cfg.piloto_cidade.trim()].filter(Boolean)
@@ -446,6 +451,29 @@ function Formulario({ dados }: { dados: PainelPiloto }) {
             <Input id="max-resp" type="number" min={1} max={20} {...campo("piloto_max_respostas")} />
             <p className="text-xs text-muted-foreground">Depois disso, a conversa passa para você.</p>
           </div>
+        </div>
+      </Secao>
+
+      <Secao
+        numero={4}
+        titulo="Quem não respondeu"
+        descricao="A maioria das vendas sai do follow-up. O piloto retoma quem ficou em silêncio no 2º, 5º, 9º e 14º dia depois do primeiro contato, cada vez com um ângulo novo. A última é uma despedida educada, e depois disso ele para. Usa o mesmo ritmo e o mesmo limite diário dos primeiros contatos."
+      >
+        <div className="flex flex-col gap-3">
+          <label className="flex items-center gap-3 text-[15px]">
+            <Switch
+              checked={cfg.piloto_followup === "1"}
+              onCheckedChange={(v) => setCfg((a) => ({ ...a, piloto_followup: v ? "1" : "0" }))}
+            />
+            Mandar follow-up automático
+          </label>
+          <label className="flex items-center gap-3 text-[15px]">
+            <Switch
+              checked={cfg.piloto_recado_robo === "1"}
+              onCheckedChange={(v) => setCfg((a) => ({ ...a, piloto_recado_robo: v ? "1" : "0" }))}
+            />
+            Quando um robô de atendimento responder, pedir o contato do dono (uma vez só)
+          </label>
         </div>
       </Secao>
 

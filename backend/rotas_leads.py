@@ -497,10 +497,11 @@ def atualizar_followup(place_id):
     return jsonify({"ok": True})
 
 
-def gerar_copy_para_lead(conexao, lead, tipo="contato"):
+def gerar_copy_para_lead(conexao, lead, tipo="contato", mensagens_anteriores=None):
     """Gera a copy de contato/follow-up de um lead do Maps (sqlite3.Row ou dict) e,
     se for de contato, salva em mensagem_gerada. Retorna (mensagem, provedor, avisos).
-    Usada pela rota abaixo e pelo piloto automático. Levanta exceção se a IA falhar."""
+    Usada pela rota abaixo e pelo piloto automático. Levanta exceção se a IA falhar.
+    `mensagens_anteriores`: o que já foi enviado (o piloto passa a conversa toda)."""
     # lead com site: captura o conteúdo real pra copy citar um detalhe específico,
     # e anexa o raio-X (tem/falta) já salvo na busca
     conteudo_site = None
@@ -530,9 +531,10 @@ def gerar_copy_para_lead(conexao, lead, tipo="contato"):
         num_avaliacoes=lead["num_avaliacoes"],
         cidade=lead["cidade"],
         instagram_url=lead["instagram_url"],
-        # no follow-up a IA vê a mensagem já enviada, pra variar de verdade
-        mensagem_anterior=lead["mensagem_gerada"] if tipo == "followup" else None,
+        # no follow-up a IA vê o que já foi enviado, pra variar de verdade
+        mensagem_anterior=(mensagens_anteriores or lead["mensagem_gerada"]) if tipo == "followup" else None,
         conteudo_site=conteudo_site,
+        nicho=lead["nicho"],
     )
 
     if tipo == "contato":

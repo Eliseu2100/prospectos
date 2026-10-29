@@ -18,6 +18,7 @@ import re
 import time
 from datetime import date, datetime, timedelta
 
+import abordagem
 import db
 from constantes import (
     ESTAGIO_NEGOCIACAO_PADRAO,
@@ -318,8 +319,8 @@ def saudacao_por_horario():
     return "Boa noite"
 
 
-# acima disso a primeira mensagem parece spam no WhatsApp (revisão de 28/10)
-MAX_CARACTERES_PRIMEIRA_MENSAGEM = 450
+# acima disso a primeira mensagem não cabe numa tela e parece spam (revisões de 28 e 29/10)
+MAX_CARACTERES_PRIMEIRA_MENSAGEM = 350
 
 _REGEX_SAUDACAO = re.compile(r"\b(Bom dia|Boa tarde|Boa noite)\b", re.IGNORECASE)
 
@@ -333,9 +334,10 @@ def ajustar_saudacao(texto):
     )
 
 
-# Fechamentos da PRIMEIRA mensagem: perguntas leves de interesse. Nada de prévia
+# Fechamentos das DMs do Instagram: perguntas leves de interesse. Nada de prévia
 # pronta nem horário marcado - o fluxo do vendedor é: o lead demonstra interesse,
-# pede pra ver, e aí se combina a prévia para o dia seguinte (ver piloto).
+# pede pra ver, e aí se combina a prévia para o dia seguinte (ver piloto). No
+# WhatsApp a pergunta final vem da estrutura sorteada em abordagem.py.
 PERGUNTAS_DE_FECHAMENTO = [
     "Vocês já pensaram em ter um site próprio?",
     "Hoje chega cliente novo pra vocês pelo Google?",
@@ -402,15 +404,17 @@ Regras invariáveis (valem para TODA mensagem):
 - Use APENAS os dados fornecidos; nunca invente números, prêmios, clientes ou depoimentos.
 - Adapte o vocabulário ao nicho (clínica → "agenda de pacientes"; imobiliária → "captação de clientes"; restaurante → "reservas e pedidos").
 - Se o campo Nome for dominado por nome de pessoa (ex: "Dra. Ana Souza Odontologia"), fale COM a pessoa pelo primeiro nome, "você" no singular. Se for institucional (ex: "Vivarte Odontologia"), use "vocês"/"a equipe", sem inventar nomes.
-- Termine com o fechamento EXATO indicado na tarefa - pedido de ação específico e fechado, nunca "faz sentido conversarmos?".
+- Termine com o fechamento ou a pergunta indicada na tarefa - específica e fácil de responder, nunca "faz sentido conversarmos?".
 - Escreva o nome da empresa EXATAMENTE como está no campo Nome (sem corrigir, abreviar ou trocar letras). Se o nome for longo ou cheio de descrições ("Clínica X - Acupuntura e Fisioterapia em Santo André"), use só a parte que é o nome em si ("Clínica X").
 - Nunca cumprimente o nome da empresa como se fosse uma pessoa ("Boa tarde, Fino Bronze!"). Sem nome de pessoa, use "pessoal" ou "equipe da X", ou só a saudação.
 - Fale de RESULTADO para o negócio (agenda cheia, cliente novo que acha pelo Google, mais pedidos), nunca de tecnologia: proibido "código limpo", "engenharia de software", "SEO", "navegação perfeita", "desenvolvimento web", "anos de TI". Se o diferencial do vendedor for técnico, traduza em benefício (ex.: "entrego em 7 dias" em vez de "metodologia ágil").
-- Mensagem CURTA de WhatsApp: no máximo 3 frases e cerca de 350 caracteres. Dono de pequeno negócio lê no celular entre um cliente e outro; parágrafo longo parece spam e não é respondido.
+- Mensagem CURTA de WhatsApp: no máximo 3 frases, cabendo numa tela de celular sem rolar. Dono de pequeno negócio lê entre um cliente e outro; parágrafo longo parece spam e não é respondido.
+- Uma pergunta por mensagem, no máximo. Sem emoji, sem travessão (— ou –), sem listas.
 - Responda APENAS com o texto final da mensagem: sem aspas em volta, sem explicações, sem markdown.
 
-Exemplo do tom certo (régua de qualidade - não copie a estrutura literalmente):
-"Janete, boa tarde! Vi que a Estética Vit tem nota 5.0 no Google com mais de 100 avaliações - reputação que pouca clínica da região alcança. Só que quem pesquisa 'estética em Cuiabá' fora do Maps não te encontra, e acaba no site de outra clínica. Eu crio sites profissionais para negócios locais; posso te mandar uma prévia de como ficaria o da Vit?"
+Exemplos do tom certo (régua de qualidade - não copie as frases):
+"Janete, boa tarde! A Estética Vit tem nota 5.0 com mais de 100 avaliações no Google, dá pra ver o capricho. Por isso me chamou atenção não ter um site pra quem pesquisa fora do Maps. Falta de tempo mesmo?"
+"Oi, tudo bem? Dei uma olhada no site da Oficina Mota e ele não abre direito no celular. Isso costuma fazer o cliente desistir antes de ligar. Vocês já tinham percebido?"
 """
 
 
@@ -418,7 +422,7 @@ def _linha_dado(rotulo, valor):
     return f"- {rotulo}: {valor}" if valor not in (None, "", 0) else None
 
 
-_SEPARADORES_NOME = (" | ", " - ", " – ", " — ", " (", ", ")
+_SEPARADORES_NOME = (" | ", " - ", " – ", " — ", "- ", " (", ", ")
 
 
 def nome_curto_empresa(nome):
@@ -471,82 +475,87 @@ def _contexto_site(site_status, site_problemas):
 # ---------------------------------------------------------------------------
 
 def montar_prompt_contato(nome, categoria, endereco, nota, site_status=None, site_problemas=None,
-                          num_avaliacoes=None, cidade=None, instagram_url=None, conteudo_site=None):
+                          num_avaliacoes=None, cidade=None, instagram_url=None, conteudo_site=None,
+                          nicho=None):
     bloco_conteudo = (
         f"""
 Conteúdo REAL do site atual da empresa (capturado agora):
 \"\"\"{conteudo_site}\"\"\"
-Use esse conteúdo para citar UM detalhe específico do site (algo desatualizado, vago ou fraco) em tom respeitoso - isso prova que você realmente olhou o site deles, sem humilhar o trabalho existente.
+Se a estrutura pedir uma observação, você pode usar UM detalhe específico desse conteúdo (algo desatualizado, vago ou quebrado), em tom respeitoso, sem humilhar o trabalho existente.
 """
         if conteudo_site
         else ""
     )
+    estrutura = abordagem.escolher_estrutura_abertura(site_status, site_problemas, nota, num_avaliacoes)
 
-    return f"""Escreva UMA mensagem de primeiro contato via WhatsApp (no máximo 3 frases curtas, ~350 caracteres) oferecendo a criação de um site profissional para a empresa abaixo.
+    return f"""Escreva UMA mensagem de primeiro contato via WhatsApp para a empresa abaixo. O objetivo é só abrir a conversa com um dono de negócio que não te conhece; o assunto de fundo é a presença dela na internet (site).
+
+{abordagem.REGRAS_PRIMEIRO_CONTATO}
+
+Estrutura desta mensagem (siga esta, com as suas palavras):
+{abordagem.ESTRUTURAS_ABERTURA[estrutura]}
 
 {_contexto_site(site_status, site_problemas)}
-{bloco_conteudo}
+{bloco_conteudo}{abordagem.bloco_dor_do_nicho(categoria, nicho)}
 Dados da empresa:
 {_bloco_dados_empresa(nome, categoria, endereco, nota, num_avaliacoes, cidade, instagram_url)}
 
 Orientações desta mensagem:
-- Mencione a nota (e o volume de avaliações, se houver) como fato relevante do argumento, não como elogio vazio.
-- Encaixe a saudação indicada de forma natural, variando a posição na frase (nem sempre no início).
-- {sortear_fechamento()}
+- Encaixe a saudação indicada de forma natural.
+- Se for se identificar, só o primeiro nome, em meia frase. Sem dizer o que você vende.
+- A pergunta da estrutura É o fechamento: não acrescente outra pergunta nem convite.
 """
 
 
 def montar_prompt_followup(nome, categoria, endereco, nota, follow_ups_enviados,
-                           num_avaliacoes=None, cidade=None, mensagem_anterior=None):
-    numero_do_followup = max(follow_ups_enviados, 1)
-    if numero_do_followup <= 1:
-        orientacao_tom = (
-            "Este é o PRIMEIRO follow-up (sem resposta ao primeiro contato). Tom de reforço gentil "
-            "e leve, como quem lembra educadamente - a mensagem anterior pode ter passado despercebida."
-        )
-    else:
-        orientacao_tom = (
-            f"Este é o follow-up número {numero_do_followup} (já foram {numero_do_followup} mensagens "
-            "sem resposta). Seja mais direto e conciso, sem soar impaciente. Traga um elemento NOVO "
-            "que não estava nas mensagens anteriores (um prazo, uma prova social genérica sobre ter "
-            "site, ou perguntar objetivamente se ainda faz sentido)."
-        )
+                           num_avaliacoes=None, cidade=None, mensagem_anterior=None,
+                           site_status=None, site_problemas=None, nicho=None):
+    """`follow_ups_enviados` = quantos já foram; este é o próximo da cadência."""
+    numero = (follow_ups_enviados or 0) + 1
+    ultimo = numero >= max(abordagem.ANGULOS_FOLLOWUP)
 
     bloco_anterior = (
-        f'\nMensagem já enviada anteriormente (NÃO repita o argumento nem a estrutura dela - varie de verdade):\n"""{mensagem_anterior}"""\n'
+        f'\nO que você já mandou e ficou sem resposta (NÃO repita argumento, estrutura nem frases):\n"""{mensagem_anterior}"""\n'
         if mensagem_anterior
         else ""
     )
 
-    return f"""Escreva UMA mensagem de FOLLOW-UP via WhatsApp (2-4 frases, mais curta que um primeiro contato) para retomar contato com a empresa abaixo, que recebeu uma proposta de criação de site e não respondeu.
+    return f"""Escreva UMA mensagem de FOLLOW-UP via WhatsApp para a empresa abaixo, que recebeu sua mensagem e não respondeu. É o follow-up número {numero}{" (o último)" if ultimo else ""}.
 
-{orientacao_tom}
+Ângulo deste follow-up:
+{abordagem.angulo_followup(numero)}
 {bloco_anterior}
+Contexto do site da empresa:
+{_contexto_site(site_status, site_problemas)}
+{abordagem.bloco_dor_do_nicho(categoria, nicho)}
 Dados da empresa:
 {_bloco_dados_empresa(nome, categoria, endereco, nota, num_avaliacoes, cidade)}
 
 Orientações desta mensagem:
-- NÃO comece se desculpando por "incomodar de novo" nem com frases inseguras.
-- {sortear_fechamento()}
+- Mais curta que o primeiro contato: 1 a 3 frases, cabe numa tela sem rolar.
+- No máximo UMA pergunta{" (nesta, nenhuma)" if ultimo else ""}. Zero emoji, zero travessão.
+- Nada de se desculpar por "incomodar de novo", cobrar resposta ou falar de preço.
+- Não repita a saudação de bom dia/boa tarde se não couber; um "Oi" basta.
 """
 
 
 def gerar_mensagem_com_fallback(nome, categoria, endereco, nota, tipo="contato", follow_ups_enviados=0,
                                 site_status=None, site_problemas=None, num_avaliacoes=None,
                                 cidade=None, instagram_url=None, mensagem_anterior=None,
-                                conteudo_site=None):
+                                conteudo_site=None, nicho=None):
     """Gera a mensagem de abordagem/follow-up de um lead do Maps.
     Retorna (mensagem, provedor_usado, avisos_para_o_usuario)."""
     if tipo == "followup":
         user = montar_prompt_followup(
             nome, categoria, endereco, nota, follow_ups_enviados,
             num_avaliacoes=num_avaliacoes, cidade=cidade, mensagem_anterior=mensagem_anterior,
+            site_status=site_status, site_problemas=site_problemas, nicho=nicho,
         )
     else:
         user = montar_prompt_contato(
             nome, categoria, endereco, nota, site_status, site_problemas,
             num_avaliacoes=num_avaliacoes, cidade=cidade, instagram_url=instagram_url,
-            conteudo_site=conteudo_site,
+            conteudo_site=conteudo_site, nicho=nicho,
         )
 
     try:
@@ -560,7 +569,7 @@ def gerar_mensagem_com_fallback(nome, categoria, endereco, nota, tipo="contato",
                     montar_system_copywriter("WhatsApp"),
                     f"Encurte esta mensagem de WhatsApp para no máximo 3 frases e "
                     f"{MAX_CARACTERES_PRIMEIRA_MENSAGEM - 70} caracteres, mantendo o nome da empresa, "
-                    f"o problema principal e a pergunta final exatamente como estão:\n\n{mensagem}",
+                    f"o fato principal e a pergunta final exatamente como estão:\n\n{mensagem}",
                     descricao_log="encurtar mensagem",
                 )
                 avisos = avisos + mais_avisos
@@ -921,15 +930,18 @@ Quando usar cada ação:
 - "responder": o lead fez pergunta simples ou demonstrou curiosidade (quem é você, o que é, como funciona, prazo, o que está incluso, formas de pagamento, se é presencial, objeções como "já tenho Instagram"). Responda com base APENAS nas informações da oferta fornecidas. O objetivo é avançar um passo: entender a necessidade dele ou combinar de mostrar uma prévia/conversar.
 - "combinar_previa": o lead demonstrou interesse e quer VER como ficaria o site dele (aceitou ver uma prévia/ideia/exemplo do site dele, ou pediu isso). O vendedor monta a prévia à noite e envia no dia útil seguinte - nunca na hora. A resposta: confirma com entusiasmo contido que vai preparar uma prévia do site DELE e enviar no dia indicado no contexto (use exatamente essa expressão de dia), e faz UMA pergunta curta para personalizar (ex.: quais serviços quer destacar, se tem logo/fotos ou cores preferidas). Não fale de preço nesta mensagem se ele não perguntou.
 - PREÇO: se o lead perguntar quanto custa e houver valor nas informações da oferta, RESPONDA com esse valor exatamente como está escrito (ex.: "a partir de R$ X"), diga em uma frase o que está incluso e termine com uma pergunta curta que ajude a entender o que ele precisa. Só passe para o humano se não houver valor escrito, se ele pedir orçamento de algo fora do que está descrito, ou se pedir desconto/negociar.
-- "passar_para_humano": o lead quer fechar ou contratar, negocia valor ou pede desconto, quer marcar reunião/ligação, pede portfólio/exemplos de OUTROS clientes, link ou arquivo que não está nas informações da oferta, mandou áudio/imagem/documento que você não consegue ler, fez pergunta técnica ou fora do escopo, está irritado, ou você não tem certeza do que responder. Na dúvida, passe para o humano.
+- "passar_para_humano": o lead quer fechar ou contratar, negocia valor ou pede desconto, quer marcar reunião/ligação, pede portfólio/exemplos de OUTROS clientes, link ou arquivo que não está nas informações da oferta, mandou áudio/imagem/documento que você não consegue ler, fez pergunta técnica ou fora do escopo, está irritado, quem respondeu não é o dono, ou você não tem certeza do que responder. Na dúvida, passe para o humano.
 - "encerrar": o lead disse claramente que não tem interesse, pediu para parar, demonstrou irritação com o contato, ou disse que é engano. A resposta deve ser UMA frase curta e educada de despedida, sem insistir e sem oferecer nada. Se ele só perguntar, sem irritação, como você conseguiu o contato, isso NÃO é encerrar: responda com transparência que o número está no perfil público da empresa no Google Maps e siga a conversa com leveza.
 
+{guia_objecoes}
+
 Regras da resposta:
-- Primeira pessoa do singular, tom humano, curto e natural, espelhando o tamanho e a formalidade do lead. Uma pergunta por mensagem no máximo.
+- Primeira pessoa do singular, tom humano, curto e natural, espelhando o tamanho e a formalidade do lead. Uma pergunta por mensagem no máximo. Responda curto: objeção respondida com textão vira objeção maior.
 - Nunca invente preço, prazo, garantia, cliente, resultado ou dado que não esteja nas informações fornecidas.
 - A única coisa que você pode prometer enviar depois é a prévia do site DELE, e só pela ação "combinar_previa", sempre para o dia indicado (nunca "agora", "já", "daqui a pouco"). Qualquer outra promessa de envio (link, portfólio, proposta, contrato, arquivo) é "passar_para_humano", porque você não tem esses materiais. Se houver um link nas informações da oferta, você pode enviá-lo direto na resposta.
 - Nunca diga que é uma IA, um robô ou uma mensagem automática, e nunca prometa algo que só o vendedor pode decidir.
-- Sem saudação repetida se a conversa já está em andamento. Sem emojis em excesso."""
+- Sem saudação repetida se a conversa já está em andamento. Sem emojis em excesso.""".replace(
+    "{guia_objecoes}", abordagem.GUIA_OBJECOES)
 
 
 def montar_prompt_piloto_resposta(lead, mensagens, info_oferta):
@@ -946,7 +958,7 @@ def montar_prompt_piloto_resposta(lead, mensagens, info_oferta):
 
 Contexto do site do lead:
 {_contexto_site(lead.get("site_status"), lead.get("site_problemas"))}
-{_bloco_perfil_vendedor()}
+{abordagem.bloco_dor_do_nicho(lead.get("categoria"), lead.get("nicho"))}{_bloco_perfil_vendedor()}
 Informações da oferta que você PODE usar (nada além disso):
 {oferta}
 

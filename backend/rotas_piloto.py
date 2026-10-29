@@ -140,7 +140,7 @@ def salvar_config_piloto():
                 return jsonify({"erro": f"{chave} deve ficar entre {minimo} e {maximo}"}), 400
             valores[chave] = str(numero)
 
-    for chave in ("piloto_auto_resposta", "piloto_fim_de_semana"):
+    for chave in ("piloto_auto_resposta", "piloto_fim_de_semana", "piloto_followup", "piloto_recado_robo"):
         if chave in dados:
             valores[chave] = "1" if dados[chave] else "0"
 

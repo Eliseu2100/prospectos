@@ -254,10 +254,55 @@ class TestSorteioDeFechamento:
         assert ia.proximo_dia_util(date(2026, 10, 27)) == (date(2026, 10, 28), "amanhã")  # terça
         assert ia.proximo_dia_util(date(2026, 10, 30)) == (date(2026, 11, 2), "na segunda-feira")  # sexta
 
-    def test_fechamento_sorteado_entra_no_prompt(self, monkeypatch):
-        monkeypatch.setattr(ia, "sortear_fechamento", lambda: "FECHAMENTO-SORTEADO")
+    def test_estrutura_sorteada_entra_no_prompt(self, monkeypatch):
+        monkeypatch.setattr(ia.abordagem, "escolher_estrutura_abertura", lambda *a: "teste_do_google")
         prompt = ia.montar_prompt_contato("Empresa", "clínica", "Rua A", 4.8)
-        assert "FECHAMENTO-SORTEADO" in prompt
+        assert ia.abordagem.ESTRUTURAS_ABERTURA["teste_do_google"] in prompt
+        assert "NÃO vende" in prompt
+
+
+class TestAbordagem:
+    def test_site_ruim_pode_abrir_com_observacao(self, monkeypatch):
+        monkeypatch.setattr(ia.abordagem.random, "choice", lambda opcoes: opcoes)
+        opcoes = ia.abordagem.escolher_estrutura_abertura("site_ruim", "não abre no celular", 4.0, 3)
+        assert "observacao" in opcoes
+        assert "elogio_e_lacuna" not in opcoes
+
+    def test_elogio_so_com_reputacao_real(self, monkeypatch):
+        monkeypatch.setattr(ia.abordagem.random, "choice", lambda opcoes: opcoes)
+        assert "elogio_e_lacuna" in ia.abordagem.escolher_estrutura_abertura("sem_site", None, 4.9, 120)
+        assert "elogio_e_lacuna" not in ia.abordagem.escolher_estrutura_abertura("sem_site", None, 4.9, 5)
+        assert "observacao" not in ia.abordagem.escolher_estrutura_abertura("sem_site", None, 4.9, 120)
+
+    def test_angulo_do_followup(self):
+        assert "despedida" in ia.abordagem.angulo_followup(4).lower()
+        assert ia.abordagem.angulo_followup(9) == ia.abordagem.angulo_followup(4)
+        assert ia.abordagem.angulo_followup(1) != ia.abordagem.angulo_followup(2)
+
+    def test_dor_do_nicho_vem_do_arquivo_local(self, monkeypatch, tmp_path):
+        import json as _json
+        arquivo = tmp_path / "playbook_nichos.json"
+        arquivo.write_text(_json.dumps({"nichos": [
+            {"nicho": "Barbearia", "palavras": ["barbearia"], "dor": "cadeira vazia na terça", "venda_primeiro": "agenda online"},
+            {"nicho": "Pet shop", "palavras": ["pet shop", "banho e tosa"], "dor": "banho esquecido", "venda_primeiro": ""},
+        ]}), encoding="utf-8")
+        monkeypatch.setattr(ia.abordagem.paths, "caminho_dados", lambda *p, **k: tmp_path.joinpath(*p))
+        ia.abordagem._cache_nichos.update({"mtime": None, "nichos": []})
+
+        assert ia.abordagem.ficha_do_nicho("Barbearia", None)["dor"] == "cadeira vazia na terça"
+        assert ia.abordagem.ficha_do_nicho("Pet Shop", "banho")["nicho"] == "Pet shop"
+        assert ia.abordagem.ficha_do_nicho("Dentista", None) is None
+        prompt = ia.montar_prompt_contato("Barbearia do Zé", "Barbearia", "Rua A", 4.8)
+        assert "cadeira vazia na terça" in prompt
+
+    def test_sem_arquivo_nao_quebra(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(ia.abordagem.paths, "caminho_dados", lambda *p, **k: tmp_path.joinpath(*p))
+        ia.abordagem._cache_nichos.update({"mtime": None, "nichos": []})
+        assert ia.abordagem.bloco_dor_do_nicho("Barbearia") == ""
+
+    def test_objecoes_entram_nas_regras_do_piloto(self):
+        assert "Isso é feito com IA?" in ia.SYSTEM_PILOTO_RESPOSTA
+        assert "{guia_objecoes}" not in ia.SYSTEM_PILOTO_RESPOSTA
 
 
 class TestPromptContato:
@@ -282,7 +327,7 @@ class TestPromptContato:
             conteudo_site="Título da página: Clínica X - promoção de 2023",
         )
         assert "promoção de 2023" in prompt
-        assert "citar UM detalhe específico" in prompt
+        assert "UM detalhe específico" in prompt
 
     def test_sem_conteudo_nao_tem_bloco(self):
         prompt = ia.montar_prompt_contato("Empresa X", "clínica", "Rua A", 4.8)
@@ -306,13 +351,13 @@ class TestPromptFollowup:
             mensagem_anterior="Olá! Vi que a Empresa X tem nota alta...",
         )
         assert "Vi que a Empresa X tem nota alta" in prompt
-        assert "NÃO repita o argumento" in prompt
+        assert "NÃO repita argumento" in prompt
 
     def test_sem_mensagem_anterior_nao_tem_bloco(self):
         prompt = ia.montar_prompt_followup(
             "Empresa X", "clínica", "Rua A", 4.8, follow_ups_enviados=1,
         )
-        assert "Mensagem já enviada anteriormente" not in prompt
+        assert "ficou sem resposta (NÃO repita" not in prompt
 
     def test_wrapper_passa_mensagem_anterior(self, monkeypatch):
         capturado = {}
@@ -428,6 +473,7 @@ class TestTraduzirErro:
 class TestNomeCurtoEMensagemCurta:
     @pytest.mark.parametrize("nome, esperado", [
         ("Clínica Needles - Acupuntura e Fisioterapia Vestibular em Santo André", "Clínica Needles"),
+        ("Studio Julie Makkari- Depilação e Estética", "Studio Julie Makkari"),
         ("Maldivas | Bronzeamento Artificial | Vila Prudente", "Maldivas"),
         ("Jairo Pinheiro Nutricionista | Nutrição Esportiva", "Jairo Pinheiro Nutricionista"),
         ("Fino Bronze SBC", "Fino Bronze SBC"),

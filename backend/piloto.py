@@ -10,7 +10,10 @@ Proteções (o número do vendedor é o ativo mais caro aqui):
 - no máximo `piloto_max_respostas` respostas automáticas seguidas por lead;
 - preço não informado, fechamento, áudio, irritação ou dúvida -> passa pra você;
 - lead quer ver como ficaria -> o piloto combina a prévia para o próximo dia útil,
-  cria a tarefa (follow-up + tag "prévia") e passa a conversa pra você montar o site.
+  cria a tarefa (follow-up + tag "prévia") e passa a conversa pra você montar o site;
+- lead que não respondeu recebe follow-ups no D2, D5, D9 e D14 depois do primeiro
+  contato (o último é uma despedida) - no mesmo ritmo e limite dos primeiros contatos;
+- quem responde é robô de atendimento -> um recado único pedindo o caminho até o dono.
 
 Estado da conversa em `leads.piloto_status`:
   'automatico'   - o piloto conduz (só esses recebem resposta automática)
@@ -25,6 +28,7 @@ import threading
 import unicodedata
 from datetime import datetime, timedelta
 
+import abordagem
 import db
 import ia
 import mensageiros
@@ -49,6 +53,8 @@ CONFIG_PADRAO = {
     "piloto_intervalo_max": "9",
     "piloto_max_respostas": "4",
     "piloto_info_oferta": "",
+    "piloto_followup": "1",
+    "piloto_recado_robo": "1",
 }
 
 DESPEDIDA_OPT_OUT = "Sem problemas, obrigado pelo retorno! Não vou mais te incomodar. Sucesso aí!"
@@ -220,6 +226,145 @@ def fazer_primeiro_contato(cfg):
 
 
 # ---------------------------------------------------------------------------
+# Follow-up de quem não respondeu
+# ---------------------------------------------------------------------------
+
+def _data(texto_iso):
+    return datetime.fromisoformat(str(texto_iso)[:19])
+
+
+def leads_para_followup(conexao, agora=None):
+    """Leads do piloto que nunca responderam (robô não conta) e cujo próximo
+    follow-up da cadência já venceu, do mais atrasado pro mais recente. Nunca
+    dois envios no mesmo dia pro mesmo lead."""
+    agora = agora or datetime.now()
+    linhas = conexao.execute(
+        """
+        SELECT l.*,
+               (SELECT MIN(enviada_em) FROM mensagens_conversa
+                 WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor') AS primeiro_envio_em,
+               (SELECT MAX(enviada_em) FROM mensagens_conversa
+                 WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor') AS ultimo_envio_em
+        FROM leads l
+        WHERE l.piloto_status = 'automatico' AND l.status = 'contatado'
+          AND COALESCE(l.follow_ups_enviados, 0) < ?
+          AND NOT EXISTS (SELECT 1 FROM mensagens_conversa
+                           WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'lead' AND automatica = 0)
+        """,
+        (len(abordagem.CADENCIA_FOLLOWUP_DIAS),),
+    ).fetchall()
+
+    vencidos = []
+    for linha in linhas:
+        lead = dict(linha)
+        if not lead["primeiro_envio_em"]:
+            continue
+        dias = abordagem.CADENCIA_FOLLOWUP_DIAS[lead["follow_ups_enviados"] or 0]
+        vence_em = _data(lead["primeiro_envio_em"]).date() + timedelta(days=dias)
+        if agora.date() >= vence_em and _data(lead["ultimo_envio_em"]).date() < agora.date():
+            lead["vence_em"] = vence_em
+            vencidos.append(lead)
+    vencidos.sort(key=lambda l: l["vence_em"])
+    return vencidos
+
+
+def fazer_followup(cfg, agora=None):
+    """Manda o follow-up mais atrasado da cadência. Retorna o nome do lead, ou
+    None se não havia nenhum vencido (ou se o limite do dia acabou)."""
+    from rotas_envio import _enviados_hoje, _limite_diario, enviar_e_registrar
+    from rotas_leads import gerar_copy_para_lead
+
+    conexao = db.conectar()
+    try:
+        if _enviados_hoje(conexao) >= _limite_diario():
+            return None
+        vencidos = leads_para_followup(conexao, agora)
+        if not vencidos:
+            return None
+        lead = vencidos[0]
+        ja_enviado = "\n---\n".join(
+            m["texto"] for m in _listar_mensagens(conexao, "maps", lead["place_id"]) if m["autor"] == "vendedor")
+        try:
+            mensagem, _provedor, _avisos = gerar_copy_para_lead(
+                conexao, lead, "followup", mensagens_anteriores=ja_enviado)
+        except Exception as erro:
+            # IA fora: este horário vai pra um primeiro contato; o follow-up tenta de novo depois
+            registrar_evento(conexao, "erro", lead["place_id"], lead["nome"],
+                             f"Não consegui gerar o follow-up: {erro}")
+            conexao.commit()
+            return None
+    finally:
+        conexao.close()
+
+    texto = ia.ajustar_saudacao(mensagem)
+    enviar_e_registrar("maps", lead["place_id"], lead, texto)
+
+    numero = (lead["follow_ups_enviados"] or 0) + 1
+    ultimo = numero >= len(abordagem.CADENCIA_FOLLOWUP_DIAS)
+    agora_iso = datetime.now().isoformat(timespec="seconds")
+    conexao = db.conectar()
+    try:
+        conexao.execute(
+            "UPDATE leads SET follow_ups_enviados = ?, ultimo_followup_em = ?, atualizado_em = ? "
+            "WHERE place_id = ?", (numero, agora_iso, agora_iso, lead["place_id"]))
+        registrar_evento(conexao, "followup_enviado", lead["place_id"], lead["nome"],
+                         f"{numero}º follow-up{' (despedida)' if ultimo else ''}: {texto}")
+        conexao.commit()
+    finally:
+        conexao.close()
+    return lead["nome"]
+
+
+# ---------------------------------------------------------------------------
+# Robô de atendimento
+# ---------------------------------------------------------------------------
+
+def leads_com_robo(conexao, agora=None):
+    """Leads do piloto em que só um robô respondeu (a última mensagem é uma
+    resposta automática) e que ainda não receberam o recado pro dono."""
+    limite = ((agora or datetime.now()) - timedelta(seconds=ATRASO_MINIMO_RESPOSTA_SEGUNDOS)
+              ).isoformat(timespec="seconds")
+    linhas = conexao.execute(
+        """
+        SELECT l.* FROM leads l
+        JOIN mensagens_conversa m ON m.id = (
+            SELECT id FROM mensagens_conversa
+            WHERE canal = 'maps' AND lead_ref = l.place_id
+            ORDER BY enviada_em DESC, id DESC LIMIT 1)
+        WHERE l.piloto_status = 'automatico' AND l.status = 'contatado'
+          AND m.autor = 'lead' AND m.automatica = 1 AND m.enviada_em <= ?
+          AND NOT EXISTS (SELECT 1 FROM piloto_eventos e
+                           WHERE e.place_id = l.place_id AND e.tipo = 'recado_robo')
+        """,
+        (limite,),
+    ).fetchall()
+    return [dict(linha) for linha in linhas]
+
+
+def mandar_recado_robo(lead):
+    """Recado único pra quem respondeu com robô: não sou cliente, qual o
+    caminho até o dono? Escrito sem IA (abordagem.RECADOS_PARA_ROBO)."""
+    from rotas_envio import _enviados_hoje, _limite_diario, enviar_e_registrar
+
+    conexao = db.conectar()
+    try:
+        if _enviados_hoje(conexao) >= _limite_diario():
+            return False
+    finally:
+        conexao.close()
+
+    texto = abordagem.recado_para_robo(ia.nome_curto_empresa(lead["nome"]))
+    enviar_e_registrar("maps", lead["place_id"], lead, texto)
+    conexao = db.conectar()
+    try:
+        registrar_evento(conexao, "recado_robo", lead["place_id"], lead["nome"], texto)
+        conexao.commit()
+    finally:
+        conexao.close()
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Respostas automáticas
 # ---------------------------------------------------------------------------
 
@@ -342,14 +487,18 @@ def rodar_uma_vez(agora=None):
     if mensageiros.estado_whatsapp() != "open":
         return
 
-    if cfg["piloto_auto_resposta"] == "1":
+    if cfg["piloto_auto_resposta"] == "1" or cfg["piloto_recado_robo"] == "1":
         import sincronizacao_whatsapp
         sincronizacao_whatsapp.sincronizar_todos()
         conexao = db.conectar()
         try:
-            pendentes = leads_aguardando_resposta(conexao, agora)
+            pendentes = leads_aguardando_resposta(conexao, agora) if cfg["piloto_auto_resposta"] == "1" else []
+            com_robo = leads_com_robo(conexao, agora) if cfg["piloto_recado_robo"] == "1" else []
         finally:
             conexao.close()
+        for lead in com_robo:
+            if not mandar_recado_robo(lead):
+                break  # limite do dia
         for lead in pendentes:
             try:
                 responder_lead(lead, cfg)
@@ -364,7 +513,9 @@ def rodar_uma_vez(agora=None):
     if cfg["piloto_ativo"] == "1":
         proximo = _estado["proximo_contato_em"]
         if proximo is None or agora >= datetime.fromisoformat(proximo):
-            fazer_primeiro_contato(cfg)
+            # follow-up vencido tem prioridade: é nele que a maioria das vendas acontece
+            if not (cfg["piloto_followup"] == "1" and fazer_followup(cfg, agora)):
+                fazer_primeiro_contato(cfg)
             _estado["proximo_contato_em"] = _sortear_proximo_contato(cfg, agora).isoformat(timespec="seconds")
 
 

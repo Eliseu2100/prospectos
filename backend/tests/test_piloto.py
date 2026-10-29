@@ -79,8 +79,12 @@ def whatsapp(monkeypatch, banco):
 def ia_falsa(monkeypatch):
     """Copy fixa e decisão configurável."""
     estado = {"decisao": {"acao": "responder", "motivo": "pergunta simples", "resposta": "Claro! Te mando uma prévia hoje."}}
-    monkeypatch.setattr(rotas_leads, "gerar_copy_para_lead",
-                        lambda conexao, lead, tipo="contato": (f"Bom dia {lead['nome']}!", "gemini", []))
+    def copy(conexao, lead, tipo="contato", mensagens_anteriores=None):
+        estado["mensagens_anteriores"] = mensagens_anteriores
+        texto = f"Bom dia {lead['nome']}!" if tipo == "contato" else f"Follow-up {lead['nome']}"
+        return texto, "gemini", []
+
+    monkeypatch.setattr(rotas_leads, "gerar_copy_para_lead", copy)
     monkeypatch.setattr(ia, "decidir_resposta_piloto",
                         lambda lead, mensagens, info=None: (estado["decisao"], "gemini", []))
     return estado
@@ -312,6 +316,141 @@ class TestRespostas:
         piloto.rodar_uma_vez(SEGUNDA_10H)
         assert whatsapp.enviados == []
         assert lead("a")["piloto_status"] == "humano"
+
+
+def contatado_pelo_piloto(place_id="a", dias_atras=2, follow_ups=0, nome="Clínica A"):
+    """Lead que recebeu o primeiro contato do piloto há `dias_atras` dias e não respondeu."""
+    criar_lead(place_id, nome=nome, status="contatado")
+    enviada_em = (SEGUNDA_10H - timedelta(days=dias_atras)).isoformat(timespec="seconds")
+    conexao = db.conectar()
+    try:
+        conexao.execute("UPDATE leads SET piloto_status = 'automatico', follow_ups_enviados = ? "
+                        "WHERE place_id = ?", (follow_ups, place_id))
+        conexao.execute(
+            "INSERT INTO mensagens_conversa (canal, lead_ref, autor, texto, enviada_em, origem, chave_dedup, criada_em) "
+            "VALUES ('maps', ?, 'vendedor', 'Oi, tudo bem?', ?, 'app', ?, ?)",
+            (place_id, enviada_em, f"wa:P-{place_id}", enviada_em),
+        )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+
+def inserir_mensagem_do_lead(place_id, texto, quando, automatica):
+    conexao = db.conectar()
+    try:
+        conexao.execute(
+            "INSERT INTO mensagens_conversa (canal, lead_ref, autor, texto, enviada_em, origem, chave_dedup, "
+            "criada_em, automatica) VALUES ('maps', ?, 'lead', ?, ?, 'whatsapp', ?, ?, ?)",
+            (place_id, texto, quando.isoformat(timespec="seconds"), f"wa:L-{place_id}-{quando.timestamp()}",
+             quando.isoformat(), int(automatica)),
+        )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+
+class TestFollowup:
+    def test_manda_no_segundo_dia(self, whatsapp, ia_falsa):
+        contatado_pelo_piloto(dias_atras=2)
+        ligar()
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+
+        assert whatsapp.enviados == [("65996757327", "Follow-up Clínica A")]
+        assert "Oi, tudo bem?" in ia_falsa["mensagens_anteriores"]
+        a = lead("a")
+        assert a["follow_ups_enviados"] == 1
+        assert a["ultimo_followup_em"] is not None
+        conexao = db.conectar()
+        try:
+            evento = conexao.execute("SELECT tipo, detalhe FROM piloto_eventos ORDER BY id DESC LIMIT 1").fetchone()
+        finally:
+            conexao.close()
+        assert evento["tipo"] == "followup_enviado"
+        assert evento["detalhe"].startswith("1º follow-up")
+
+    def test_antes_do_prazo_nao_manda(self, whatsapp, ia_falsa):
+        contatado_pelo_piloto(dias_atras=1)
+        conexao = db.conectar()
+        try:
+            assert piloto.leads_para_followup(conexao, SEGUNDA_10H) == []
+        finally:
+            conexao.close()
+
+    @pytest.mark.parametrize("follow_ups,dias,vence", [(1, 4, False), (1, 5, True), (2, 9, True), (3, 13, False),
+                                                       (3, 14, True), (4, 30, False)])
+    def test_cadencia(self, banco, follow_ups, dias, vence):
+        contatado_pelo_piloto(dias_atras=dias, follow_ups=follow_ups)
+        conexao = db.conectar()
+        try:
+            assert bool(piloto.leads_para_followup(conexao, SEGUNDA_10H)) is vence
+        finally:
+            conexao.close()
+
+    def test_quem_respondeu_nao_recebe_followup(self, banco):
+        contatado_pelo_piloto(dias_atras=5)
+        inserir_mensagem_do_lead("a", "Oi, quem é?", SEGUNDA_10H - timedelta(days=4), automatica=False)
+        conexao = db.conectar()
+        try:
+            assert piloto.leads_para_followup(conexao, SEGUNDA_10H) == []
+        finally:
+            conexao.close()
+
+    def test_resposta_de_robo_nao_conta_como_resposta(self, banco):
+        contatado_pelo_piloto(dias_atras=2)
+        inserir_mensagem_do_lead("a", "Olá! Digite 1 para...", SEGUNDA_10H - timedelta(days=2), automatica=True)
+        conexao = db.conectar()
+        try:
+            assert [l["place_id"] for l in piloto.leads_para_followup(conexao, SEGUNDA_10H)] == ["a"]
+        finally:
+            conexao.close()
+
+    def test_tem_prioridade_sobre_lead_novo(self, whatsapp, ia_falsa):
+        contatado_pelo_piloto(dias_atras=2)
+        criar_lead("novo", nome="Clínica Nova")
+        ligar()
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+        assert whatsapp.enviados == [("65996757327", "Follow-up Clínica A")]
+        assert lead("novo")["status"] == "novo"
+
+    def test_desligado_segue_para_lead_novo(self, whatsapp, ia_falsa):
+        contatado_pelo_piloto(dias_atras=2)
+        criar_lead("novo", nome="Clínica Nova")
+        ligar(piloto_followup=0)
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+        assert len(whatsapp.enviados) == 1 and "Clínica Nova" in whatsapp.enviados[0][1]
+
+
+class TestRecadoRobo:
+    def test_robo_recebe_recado_uma_vez(self, whatsapp, ia_falsa):
+        contatado_pelo_piloto(dias_atras=0)
+        inserir_mensagem_do_lead("a", "Olá! Digite 1 para agendar", SEGUNDA_10H + timedelta(seconds=20), automatica=True)
+        piloto.rodar_uma_vez(SEGUNDA_10H + timedelta(minutes=5))
+
+        assert len(whatsapp.enviados) == 1
+        assert "não sou cliente" in whatsapp.enviados[0][1]
+        assert "Clínica A" in whatsapp.enviados[0][1]
+        # o robô responde de novo: não manda outro recado
+        inserir_mensagem_do_lead("a", "Olá! Digite 1 para agendar", SEGUNDA_10H + timedelta(minutes=6), automatica=True)
+        piloto.rodar_uma_vez(SEGUNDA_10H + timedelta(minutes=10))
+        assert len(whatsapp.enviados) == 1
+
+    def test_desligado_nao_manda(self, whatsapp, ia_falsa):
+        db.salvar_config("piloto_recado_robo", "0")
+        contatado_pelo_piloto(dias_atras=0)
+        inserir_mensagem_do_lead("a", "Olá! Digite 1 para agendar", SEGUNDA_10H + timedelta(seconds=20), automatica=True)
+        piloto.rodar_uma_vez(SEGUNDA_10H + timedelta(minutes=5))
+        assert whatsapp.enviados == []
+
+    def test_resposta_de_pessoa_nao_recebe_recado(self, whatsapp, ia_falsa):
+        contatado_pelo_piloto(dias_atras=0)
+        inserir_mensagem_do_lead("a", "Olá! Digite 1 para agendar", SEGUNDA_10H + timedelta(seconds=20), automatica=True)
+        inserir_mensagem_do_lead("a", "Oi, sou eu o dono", SEGUNDA_10H + timedelta(minutes=2), automatica=False)
+        conexao = db.conectar()
+        try:
+            assert piloto.leads_com_robo(conexao, SEGUNDA_10H + timedelta(minutes=5)) == []
+        finally:
+            conexao.close()
 
 
 class TestOptOut:

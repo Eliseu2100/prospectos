@@ -14,3 +14,6 @@ instalador/saida/
 
 # trabalho do Higgsfield Brandkit (logos candidatos, estado)
 brandkit/
+
+# playbook de nichos do vendedor (material de uso pessoal - fica só na pasta de dados)
+playbook_nichos.json

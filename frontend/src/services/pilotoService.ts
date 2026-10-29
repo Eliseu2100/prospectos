@@ -13,6 +13,8 @@ export interface ConfigPiloto {
   piloto_intervalo_max: string
   piloto_max_respostas: string
   piloto_info_oferta: string
+  piloto_followup: string
+  piloto_recado_robo: string
 }
 
 export interface LeadFila {
@@ -28,6 +30,8 @@ export interface LeadFila {
 
 export type TipoEventoPiloto =
   | "contato_enviado"
+  | "followup_enviado"
+  | "recado_robo"
   | "resposta_enviada"
   | "previa_combinada"
   | "passou_para_voce"
@@ -80,9 +84,10 @@ export interface PainelPiloto {
   areas: { nichos: string[]; cidades: string[] }
 }
 
-export type SalvarConfigPiloto = Partial<
-  Omit<ConfigPiloto, "piloto_auto_resposta" | "piloto_fim_de_semana" | "piloto_ativo">
-> & { piloto_auto_resposta?: boolean; piloto_fim_de_semana?: boolean }
+type ChavesBooleanas = "piloto_auto_resposta" | "piloto_fim_de_semana" | "piloto_followup" | "piloto_recado_robo"
+
+export type SalvarConfigPiloto = Partial<Omit<ConfigPiloto, ChavesBooleanas | "piloto_ativo">> &
+  Partial<Record<ChavesBooleanas, boolean>>
 
 export const pilotoService = {
   painel: () => httpClient.get<PainelPiloto>("/api/piloto"),
