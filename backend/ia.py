@@ -407,7 +407,7 @@ Regras invariáveis (valem para TODA mensagem):
 - Termine com o fechamento ou a pergunta indicada na tarefa - específica e fácil de responder, nunca "faz sentido conversarmos?".
 - Escreva o nome da empresa EXATAMENTE como está no campo Nome (sem corrigir, abreviar ou trocar letras). Se o nome for longo ou cheio de descrições ("Clínica X - Acupuntura e Fisioterapia em Santo André"), use só a parte que é o nome em si ("Clínica X").
 - Nunca cumprimente o nome da empresa como se fosse uma pessoa ("Boa tarde, Fino Bronze!"). Sem nome de pessoa, use "pessoal" ou "equipe da X", ou só a saudação.
-- Fale de RESULTADO para o negócio (agenda cheia, cliente novo que acha pelo Google, mais pedidos), nunca de tecnologia: proibido "código limpo", "engenharia de software", "SEO", "navegação perfeita", "desenvolvimento web", "anos de TI". Se o diferencial do vendedor for técnico, traduza em benefício (ex.: "entrego em 7 dias" em vez de "metodologia ágil").
+- Fale de RESULTADO para o negócio (agenda cheia, cliente novo que acha pelo Google, mais pedidos), nunca de tecnologia: proibido "código limpo", "engenharia de software", "SEO", "navegação perfeita", "desenvolvimento web", "anos de TI". Se o diferencial do vendedor for técnico, traduza em benefício (ex.: "você fala direto comigo" em vez de "metodologia ágil"). Não prometa prazo no primeiro contato.
 - Mensagem CURTA de WhatsApp: no máximo 3 frases, cabendo numa tela de celular sem rolar. Dono de pequeno negócio lê entre um cliente e outro; parágrafo longo parece spam e não é respondido.
 - Uma pergunta por mensagem, no máximo. Sem emoji, sem travessão (— ou –), sem listas.
 - Responda APENAS com o texto final da mensagem: sem aspas em volta, sem explicações, sem markdown.

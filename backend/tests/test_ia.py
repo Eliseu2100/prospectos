@@ -295,6 +295,19 @@ class TestAbordagem:
         prompt = ia.montar_prompt_contato("Barbearia do Zé", "Barbearia", "Rua A", 4.8)
         assert "cadeira vazia na terça" in prompt
 
+    def test_regras_do_nicho_entram_no_prompt(self, monkeypatch, tmp_path):
+        import json as _json
+
+        arquivo = tmp_path / "playbook_nichos.json"
+        arquivo.write_text(_json.dumps({"nichos": [
+            {"nicho": "Advogado", "palavras": ["advogado"], "dor": "ninguém acha", "regras_nicho": "Trate por Dr."},
+        ]}), encoding="utf-8")
+        monkeypatch.setattr(ia.abordagem.paths, "caminho_dados", lambda *p, **k: tmp_path.joinpath(*p))
+        ia.abordagem._cache_nichos.update({"mtime": None, "nichos": []})
+
+        assert "Regras desse ramo (obrigatórias): Trate por Dr." in ia.montar_prompt_contato(
+            "Silva Advogados", "Advogado", "Rua A", 4.8)
+
     def test_sem_arquivo_nao_quebra(self, monkeypatch, tmp_path):
         monkeypatch.setattr(ia.abordagem.paths, "caminho_dados", lambda *p, **k: tmp_path.joinpath(*p))
         ia.abordagem._cache_nichos.update({"mtime": None, "nichos": []})

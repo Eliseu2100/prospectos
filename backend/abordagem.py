@@ -132,6 +132,8 @@ GUIA_OBJECOES = """Como responder às objeções mais comuns (curto, sem textão
 - "Já tenho quem faça": valide a decisão e pergunte só se essa pessoa consegue entregar na velocidade que ele precisa. Nunca critique o trabalho de outro profissional.
 - "Isso é feito com IA?": seja honesto, sem pedir desculpa: você usa tecnologia no processo como qualquer profissional usa boas ferramentas, mas o que ele recebe é o resultado. Ofereça mostrar uma prévia do site dele para ele julgar pelo resultado.
 - "Vou fazer eu mesmo" / "tem ferramenta grátis": concorde que dá para fazer; o que você entrega é o resto (o texto certo para virar cliente, o que o Google exige, o acabamento que passa confiança e as horas dele de volta). Diga que, se travar, pode te chamar.
+- "O Instagram já me serve": não discuta nem diminua o Instagram; diga que o site atende quem pesquisa no Google e quer entender a empresa sem abrir post por post, e pergunte se hoje chega pedido de quem não conhecia a empresa.
+- "Vivo de indicação": concorde; o site entra depois da indicação, porque quem recebe o nome costuma pesquisar antes de ligar. Pergunte se hoje essa pessoa encontra o trabalho deles.
 - "Vou pensar": aceite e pergunte com sinceridade se ficou alguma dúvida que você possa esclarecer ou se é o momento que não é bom.
 - "Me chama depois" / "mês que vem": aceite sem insistir e pergunte o que muda até lá, para você voltar com algo útil. Quando ele disser QUANDO retomar, passe para o humano com o motivo "retomar em <quando>".
 - Quem respondeu não é o dono (atendente, recepção, funcionário que diz que vai repassar ou que passa outro contato): passe para o humano com o motivo "falar com o dono", incluindo o contato se ele mandou."""
@@ -146,13 +148,13 @@ GUIA_OBJECOES = """Como responder às objeções mais comuns (curto, sem textão
 RECADOS_PARA_ROBO = [
     "Oi! Vi que aqui cai no atendimento automático, então vou ser direto: não sou cliente, é um "
     "assunto rápido com quem é responsável pela {nome}. Qual o melhor jeito de falar com essa "
-    "pessoa? Pode ser outro número, e-mail ou passo aí pessoalmente.",
+    "pessoa? Pode ser outro número ou e-mail.",
     "Oi, tudo bem? Sei que este é o canal de atendimento, então já adianto: "
     "não sou cliente, é um assunto comercial rápido com o dono ou dona da {nome}. Como consigo falar "
-    "com ele(a)? Outro número, e-mail, ou passo aí?",
+    "com ele(a)? Pode ser outro número ou e-mail.",
     "Olá! Como aqui é o atendimento automático, vou direto ao ponto: não sou cliente, queria falar "
-    "rapidinho com quem cuida da {nome}. Qual o melhor caminho até essa pessoa: outro número, "
-    "e-mail ou pessoalmente?",
+    "rapidinho com quem cuida da {nome}. Qual o melhor caminho até essa pessoa: outro número "
+    "ou e-mail?",
 ]
 
 
@@ -220,4 +222,6 @@ def bloco_dor_do_nicho(categoria=None, nicho=None):
     ]
     if ficha.get("venda_primeiro"):
         linhas.append(f"O que costuma resolver essa dor: {ficha['venda_primeiro']}")
+    if ficha.get("regras_nicho"):
+        linhas.append(f"Regras desse ramo (obrigatórias): {ficha['regras_nicho']}")
     return "\n".join(linhas) + "\n"
