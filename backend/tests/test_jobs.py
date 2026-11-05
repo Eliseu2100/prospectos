@@ -414,3 +414,24 @@ class TestBuscaNaoFicaPresa:
         assert Processo.morto is True
         vivo.join()
         jobs._cancelar_busca.clear()
+
+
+class TestExecutarScraperSempreRetomavel:
+    """-resume vai sempre no comando: se o arquivo de resultados já existe (busca
+    anterior travou/foi cancelada), o scraper continua de onde parou em vez de
+    recomeçar do zero; se não existe (primeira busca do dia), não muda nada."""
+
+    def test_comando_inclui_resume(self, tmp_path, monkeypatch):
+        comandos_capturados = []
+
+        def rodar_fake(comando, cwd, env, timeout_segundos, callback_linha=None):
+            comandos_capturados.append(comando)
+            return 0, ""
+
+        monkeypatch.setattr(jobs, "rodar_scraper_com_progresso", rodar_fake)
+        monkeypatch.setattr(jobs.db, "obter_config", lambda chave, default=None: default)
+
+        erro = jobs._executar_scraper(tmp_path / "bruto.csv", ambiente={})
+
+        assert erro is None
+        assert "-resume" in comandos_capturados[0]

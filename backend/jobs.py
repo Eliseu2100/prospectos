@@ -249,14 +249,18 @@ def traduzir_erro_scraper(stderr, returncode):
             "O scraper não conseguiu preparar o navegador interno. Causa mais comum: "
             "seu google-maps-scraper.exe está desatualizado e procura um componente "
             "(driver do Playwright) que a Microsoft já tirou do ar. Baixe a versão mais "
-            "recente em github.com/gosom/google-maps-scraper/releases e substitua o .exe "
-            "na pasta backend/. Se persistir, confira se o Node.js está instalado. "
+            "recente em github.com/mazzeoia/mazyos-scraper/releases (nosso fork, já corrige "
+            "esse bug no Windows) e substitua o .exe na pasta backend/. Se persistir, confira "
+            "se o Node.js está instalado. "
             "Alternativa sem scraper: use a Google Places API em Configurações → Fonte de dados."
         )
     if "no such file" in texto or "not found" in texto:
         return "O programa google-maps-scraper.exe não foi encontrado na pasta do projeto."
     if "deadline exceeded" in texto or "timeout" in texto:
-        return "A busca no Google Maps demorou demais e foi interrompida. Tente de novo."
+        return (
+            "A busca no Google Maps demorou demais e foi interrompida. Tente de novo: "
+            "o scraper retoma de onde parou, em vez de recomeçar do zero."
+        )
 
     return (
         f"A busca falhou (código {returncode}). Veja os detalhes completos em logs/prospeccao.log."
@@ -372,6 +376,12 @@ def _executar_scraper(arquivo_bruto, ambiente, flags_extras=()):
         "-lang", "pt",
         "-depth", "5",
         "-exit-on-inactivity", "3m",
+        # sempre liga: se arquivo_bruto já existe (busca anterior travou/foi
+        # cancelada/bateu o timeout), o scraper lê o que já achou e continua de
+        # onde parou, em vez de recomeçar do zero - sem risco quando o arquivo
+        # ainda não existe (primeira busca do dia), o scraper simplesmente cria
+        # ele normalmente
+        "-resume",
         *flags_extras,
     ]
     proxies = db.obter_config("scraper_proxies")

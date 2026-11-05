@@ -155,12 +155,12 @@ Tem duas formas de configurar, escolha a que for mais fácil pra você:
 
 O `google-maps-scraper.exe` **não vem no repositório** (é um binário de terceiros, ~60MB, de outro projeto open source, então não faz sentido versionar binário compilado dentro de um repo git). Passo a passo completo, sem pular nada:
 
-1. Acesse **[a página de releases mais recente](https://github.com/gosom/google-maps-scraper/releases/latest)**.
-2. Role até a seção **"Assets"** (fica perto do final da página, às vezes precisa clicar para expandir).
-3. Procure o arquivo para **Windows**. O nome muda a cada versão nova, mas segue sempre o padrão `google_maps_scraper-<versão>-windows-amd64.exe`, por exemplo: `google_maps_scraper-1.16.1-windows-amd64.exe`.
+1. Acesse **[a página de releases do MazyOS Scraper](https://github.com/mazzeoia/mazyos-scraper/releases/latest)** — nosso próprio fork do `gosom/google-maps-scraper`, com uma correção para o bug de Windows descrito no aviso abaixo.
+2. Baixe o arquivo **`mazyos-scraper-windows.zip`** e extraia numa pasta qualquer.
+3. Dentro do zip extraído está o arquivo **`mazyos-scraper.exe`**.
 
-   > ⚠️ Não baixe as versões `linux` ou `darwin` (essas são para Linux/Mac). Você quer especificamente a que tem `windows` no nome.
-4. Depois de baixado, **renomeie o arquivo para exatamente `google-maps-scraper.exe`** (tudo minúsculo, com hífens).
+   > Se preferir o binário original (sem a correção de Windows), ele também existe em [`gosom/google-maps-scraper/releases`](https://github.com/gosom/google-maps-scraper/releases/latest), procurando o arquivo com `windows-amd64` no nome. Não baixe as versões `linux` ou `darwin`.
+4. **Renomeie o arquivo para exatamente `google-maps-scraper.exe`** (tudo minúsculo, com hífens) — é o nome que o ProspectOS procura, independente de qual dos dois binários você usou.
    - No Windows, se você não estiver vendo a extensão `.exe` no nome do arquivo, isso é normal (o Windows esconde extensões conhecidas por padrão). Não precisa se preocupar, só renomeie a parte visível do nome.
 5. Mova esse arquivo para dentro da pasta `backend/` deste projeto, **no mesmo nível** do arquivo `app.py` (não dentro de nenhuma subpasta).
 6. Para conferir se deu certo, a pasta `backend/` deve conter, lado a lado: `app.py`, `processar.py` e `google-maps-scraper.exe`.
@@ -169,7 +169,7 @@ O `google-maps-scraper.exe` **não vem no repositório** (é um binário de terc
 >
 > Sem esse arquivo, **só o canal Google Maps fica indisponível**. O canal Instagram funciona normalmente sem ele.
 
-> ⚠️ **Erro de "Playwright/driver não disponível"?** Na primeira busca, o scraper baixa um componente (driver do Playwright) dos servidores da Microsoft — numa versão fixa, gravada dentro do `.exe`. A Microsoft remove versões antigas desse componente, então um `google-maps-scraper.exe` baixado há muito tempo pode procurar um driver que **não existe mais**. Solução: baixe de novo a [release mais recente](https://github.com/gosom/google-maps-scraper/releases/latest) e substitua o `.exe` — ou, se preferir não depender do scraper, use a **Google Places API oficial** em *Configurações → Fonte de dados*.
+> ⚠️ **Erro de "Playwright/driver não disponível"?** Na primeira busca, o scraper baixa um componente (driver do Playwright) dos servidores da Microsoft — numa versão fixa, gravada dentro do `.exe`. A Microsoft remove versões antigas desse componente, então um `google-maps-scraper.exe` baixado há muito tempo pode procurar um driver que **não existe mais**. Esse é justamente o bug que o fork do passo 1 corrige para Windows; se ainda usa o binário original do gosom, baixe de novo a [release mais recente](https://github.com/gosom/google-maps-scraper/releases/latest) e substitua o `.exe` — ou, se preferir não depender do scraper, use a **Google Places API oficial** em *Configurações → Fonte de dados*.
 
 ### 4. Faça login no Instagram (só se for usar esse canal)
 

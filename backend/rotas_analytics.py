@@ -387,7 +387,7 @@ def tarefas_hoje():
             db.linha_para_dict(l) for l in conexao.execute(
                 "SELECT place_id AS id, nome AS titulo, 'maps' AS canal, categoria, nota, "
                 "num_avaliacoes, site_status, site_problemas, whatsapp_link, telefone, "
-                "mensagem_gerada AS mensagem, instagram_url "
+                "mensagem_gerada AS mensagem, instagram_url, prioridade_nicho_pontos "
                 f"FROM leads WHERE status = 'novo' ORDER BY {SQL_SCORE} DESC, nota DESC LIMIT 5",
             ).fetchall()
         ] if db.CAMINHO_BANCO.exists() else []
@@ -395,7 +395,10 @@ def tarefas_hoje():
         conexao.close()
 
     for lead in novos_quentes:
-        lead["score"] = calcular_score(lead.get("nota"), lead.get("num_avaliacoes"), lead.get("site_status"))
+        lead["score"] = calcular_score(
+            lead.get("nota"), lead.get("num_avaliacoes"), lead.get("site_status"),
+            lead.get("prioridade_nicho_pontos"),
+        )
 
     followups = sorted(
         followups_maps + followups_instagram, key=lambda l: l["proximo_followup"]

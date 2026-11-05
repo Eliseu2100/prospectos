@@ -21,6 +21,8 @@ from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+import prioridade_nicho
+
 from paths import DIR_DADOS
 
 logger = logging.getLogger(__name__)
@@ -453,6 +455,7 @@ def migrar_banco(conexao):
     rodar múltiplas vezes (idempotente). Nunca recria/apaga tabelas ou dados existentes."""
     # usa índice numérico (não depende do row_factory configurado na conexão do chamador)
     colunas_existentes = {linha[1] for linha in conexao.execute("PRAGMA table_info(leads)")}
+    tinha_prioridade_nicho = "prioridade_nicho_pontos" in colunas_existentes
 
     novas_colunas = {
         "tags": "TEXT",
@@ -471,6 +474,9 @@ def migrar_banco(conexao):
         # 'encerrado' (lead pediu pra parar), 'sem_whatsapp' (número sem WhatsApp)
         "piloto_status": "TEXT",
         "piloto_respostas": "INTEGER NOT NULL DEFAULT 0",  # respostas automáticas seguidas
+        # bônus de score por nicho prioritário do Eliseu (prioridade_nicho.pontos_prioridade);
+        # fica gravado, não recalculado a cada leitura, pra SQL_SCORE poder ordenar no banco
+        "prioridade_nicho_pontos": "INTEGER NOT NULL DEFAULT 0",
     }
     for nome, tipo in novas_colunas.items():
         if nome not in colunas_existentes:
@@ -479,6 +485,9 @@ def migrar_banco(conexao):
     # Backfill: todos os leads anteriores a esta coluna entraram pelo filtro
     # antigo, que só aceitava empresa sem site.
     conexao.execute("UPDATE leads SET site_status = 'sem_site' WHERE site_status IS NULL")
+
+    if not tinha_prioridade_nicho:
+        _preencher_prioridade_nicho_retroativa(conexao)
 
     conexao.execute(
         """
@@ -767,6 +776,22 @@ def _preencher_nicho_e_cidade_faltantes(conexao):
         conexao.commit()
 
 
+def _preencher_prioridade_nicho_retroativa(conexao):
+    """Backfill rodado uma única vez, só quando a coluna prioridade_nicho_pontos
+    é criada: recalcula o bônus de nicho de todo lead já existente, pra ele entrar
+    na nova ordenação de score junto com os leads futuros."""
+    linhas = conexao.execute("SELECT place_id, categoria, nicho FROM leads").fetchall()
+    for place_id, categoria, nicho in linhas:
+        pontos = prioridade_nicho.pontos_prioridade(categoria, nicho)
+        if pontos:
+            conexao.execute(
+                "UPDATE leads SET prioridade_nicho_pontos = ? WHERE place_id = ?",
+                (pontos, place_id),
+            )
+    if linhas:
+        conexao.commit()
+
+
 def telefone_limpo(telefone_bruto):
     """Só os dígitos do telefone, sem formatação - pra exibir/copiar na interface."""
     return re.sub(r"\D", "", telefone_bruto or "") or None
@@ -969,6 +994,7 @@ def processar(caminho_csv_bruto, caminho_queries=CAMINHO_QUERIES_PADRAO, callbac
                 nicho, cidade = extrair_nicho_e_cidade(query_origem)
                 if not cidade and cidade_padrao:
                     cidade = cidade_padrao
+                pontos_nicho = prioridade_nicho.pontos_prioridade(linha.get("category"), nicho)
 
                 ja_existia = conexao.execute(
                     "SELECT 1 FROM leads WHERE place_id = ?", (place_id,)
@@ -983,9 +1009,9 @@ def processar(caminho_csv_bruto, caminho_queries=CAMINHO_QUERIES_PADRAO, callbac
                         place_id, nome, categoria, endereco, nota, num_avaliacoes,
                         whatsapp_link, telefone, query_origem, nicho, cidade,
                         site_url, site_status, site_problemas, site_checklist, instagram_url,
-                        visto_em, atualizado_em
+                        prioridade_nicho_pontos, visto_em, atualizado_em
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(place_id) DO UPDATE SET
                         nome = excluded.nome,
                         categoria = excluded.categoria,
@@ -999,6 +1025,7 @@ def processar(caminho_csv_bruto, caminho_queries=CAMINHO_QUERIES_PADRAO, callbac
                         site_problemas = excluded.site_problemas,
                         site_checklist = excluded.site_checklist,
                         instagram_url = COALESCE(excluded.instagram_url, instagram_url),
+                        prioridade_nicho_pontos = excluded.prioridade_nicho_pontos,
                         atualizado_em = excluded.atualizado_em
                     """,
                     (
@@ -1018,6 +1045,7 @@ def processar(caminho_csv_bruto, caminho_queries=CAMINHO_QUERIES_PADRAO, callbac
                         site_problemas,
                         site_checklist,
                         verificacao["instagram_url"],
+                        pontos_nicho,
                         hoje,
                         agora,
                     ),

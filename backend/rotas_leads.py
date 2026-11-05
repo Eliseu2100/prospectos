@@ -64,23 +64,30 @@ def marcar_lead_dificil(lead_dict):
     return lead_dict
 
 
-def calcular_score(nota, num_avaliacoes, site_status):
+def calcular_score(nota, num_avaliacoes, site_status, prioridade_nicho_pontos=0):
     """Score 0-100 pra ordenar a fila de abordagem: nota alta (0-40) + volume de
     avaliações como sinal de negócio estabelecido (0-30) + situação do site
     (sem site 30 > site ruim 22 > site ok 10 - quem nunca teve site tende a
-    fechar mais rápido; site ok quase não é lead)."""
+    fechar mais rápido; site ok quase não é lead) + bônus de nicho prioritário
+    do Eliseu (0-10, `prioridade_nicho.pontos_prioridade`, gravado no lead em
+    `processar.py`). O total é travado em 100 pra o bônus de nicho só desempatar
+    entre leads parecidos, nunca furar o teto."""
     pontos_nota = max(0.0, min((nota or 0) - 4.0, 1.0)) * 40
     pontos_avaliacoes = min(num_avaliacoes or 0, 100) * 0.3
     pontos_site = {"site_ruim": 22, "site_ok": 10}.get(site_status or "", 30)
-    return round(pontos_nota + pontos_avaliacoes + pontos_site)
+    pontos_nicho = min(max(prioridade_nicho_pontos or 0, 0), 10)
+    return round(min(pontos_nota + pontos_avaliacoes + pontos_site + pontos_nicho, 100))
 
 
 # mesma fórmula do calcular_score, em SQL - permite ordenar por score direto na
 # query (a paginação exige que a ordenação aconteça no banco, não em Python)
 SQL_SCORE = (
-    "(MIN(MAX(COALESCE(nota, 0) - 4.0, 0), 1.0) * 40"
+    "MIN("
+    "MIN(MAX(COALESCE(nota, 0) - 4.0, 0), 1.0) * 40"
     " + MIN(COALESCE(num_avaliacoes, 0), 100) * 0.3"
-    " + CASE COALESCE(site_status, '') WHEN 'site_ruim' THEN 22 WHEN 'site_ok' THEN 10 ELSE 30 END)"
+    " + CASE COALESCE(site_status, '') WHEN 'site_ruim' THEN 22 WHEN 'site_ok' THEN 10 ELSE 30 END"
+    " + MIN(MAX(COALESCE(prioridade_nicho_pontos, 0), 0), 10)"
+    ", 100)"
 )
 
 SITUACOES_SITE_VALIDAS = {"sem_site", "site_ruim", "site_ok"}
@@ -89,7 +96,8 @@ SITUACOES_SITE_VALIDAS = {"sem_site", "site_ruim", "site_ok"}
 def _enriquecer_lead_para_resposta(lead_dict):
     marcar_lead_dificil(lead_dict)
     lead_dict["score"] = calcular_score(
-        lead_dict.get("nota"), lead_dict.get("num_avaliacoes"), lead_dict.get("site_status")
+        lead_dict.get("nota"), lead_dict.get("num_avaliacoes"), lead_dict.get("site_status"),
+        lead_dict.get("prioridade_nicho_pontos"),
     )
     # o raio-X do site sai da API como objeto, não como string JSON
     try:
