@@ -10,7 +10,6 @@ import {
   Settings,
   User,
 } from "lucide-react"
-import { Header } from "@/components/layout/Header"
 import { InstagramIcon } from "@/components/icons/InstagramIcon"
 import { cn } from "@/lib/utils"
 import { VisaoGeralDoc } from "@/components/documentacao/secoes/VisaoGeralDoc"
@@ -39,9 +38,6 @@ export function DocumentacaoPage() {
   const Conteudo = topico.Conteudo
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Header />
-
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
         <Link
           to="/"
@@ -52,7 +48,7 @@ export function DocumentacaoPage() {
         </Link>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr]">
-          <nav className="h-fit space-y-0.5 rounded-2xl bg-card p-2 md:sticky md:top-20">
+          <nav className="h-fit space-y-0.5 rounded-2xl bg-card p-2 md:sticky md:top-6">
             {TOPICOS.map(({ id, label, icone: Icone }) => (
               <button
                 key={id}
@@ -75,6 +71,5 @@ export function DocumentacaoPage() {
           </div>
         </div>
       </main>
-    </div>
   )
 }

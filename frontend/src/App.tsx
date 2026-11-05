@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import { queryClient } from "@/lib/queryClient"
 import { PaletaComando } from "@/components/shared/PaletaComando"
+import { AppShell } from "@/components/layout/AppShell"
 import { DashboardPage } from "@/pages/DashboardPage"
 import { TarefasPage } from "@/pages/TarefasPage"
 import { SessaoProspeccaoPage } from "@/pages/SessaoProspeccaoPage"
@@ -24,21 +25,23 @@ export default function App() {
       <TooltipProvider>
         <BrowserRouter>
           <PaletaComando />
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/tarefas" element={<TarefasPage />} />
-            <Route path="/sessao" element={<SessaoProspeccaoPage />} />
-            <Route path="/leads" element={<LeadsMapsPage />} />
-            <Route path="/conversas/:placeId" element={<ConversaPage />} />
-            <Route path="/whatsapp" element={<WhatsappPage />} />
-            <Route path="/piloto" element={<PilotoPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/instagram" element={<InstagramPage />} />
-            <Route path="/instagram/analytics" element={<InstagramAnalyticsPage />} />
-            <Route path="/instagram/arquivados" element={<InstagramArquivadosPage />} />
-            <Route path="/configuracoes" element={<ConfiguracoesPage />} />
-            <Route path="/documentacao" element={<DocumentacaoPage />} />
-          </Routes>
+          <AppShell>
+            <Routes>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/tarefas" element={<TarefasPage />} />
+              <Route path="/sessao" element={<SessaoProspeccaoPage />} />
+              <Route path="/leads" element={<LeadsMapsPage />} />
+              <Route path="/conversas/:placeId" element={<ConversaPage />} />
+              <Route path="/whatsapp" element={<WhatsappPage />} />
+              <Route path="/piloto" element={<PilotoPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/instagram" element={<InstagramPage />} />
+              <Route path="/instagram/analytics" element={<InstagramAnalyticsPage />} />
+              <Route path="/instagram/arquivados" element={<InstagramArquivadosPage />} />
+              <Route path="/configuracoes" element={<ConfiguracoesPage />} />
+              <Route path="/documentacao" element={<DocumentacaoPage />} />
+            </Routes>
+          </AppShell>
         </BrowserRouter>
         <Toaster position="bottom-right" richColors />
       </TooltipProvider>

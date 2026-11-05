@@ -345,15 +345,30 @@ real estava só na cor (paleta "Apple" `#0071e3`) e na ausência do nosso logo.
   escuro, leads, Instagram, tarefas, configurações) pra conferir que nada
   quebrou visualmente antes de considerar pronto.
 
-### Não implementado — e por quê
-A sidebar à esquerda do Nozti **não foi criada**. O Seriax OS navega hoje por
-uma barra superior (pills de "Tarefas", "Piloto", "WhatsApp" etc.), não por um
-menu lateral. Trocar isso por uma sidebar de verdade é uma mudança de
-arquitetura (mexe no layout de toda página, no comportamento mobile, no estado
-de colapsar/expandir), não uma troca de cor - arrisco regressão em todo o app
-se for feito na pressa dentro desta mesma rodada. Ficou só a parte de cor +
-logo + estilo dos cartões, que já cobre a maior parte de "parecer com o
-Nozti". Se quiser a sidebar de verdade, é a próxima tarefa, maior e separada.
+### ✅ Correção de 04/11/2026: a sidebar foi construída
+A primeira rodada desta seção só trocou cor e logo, mantendo a barra superior
+antiga - o Eliseu corretamente apontou que isso não cumpria o pedido de usar
+o layout de referência. Reconstruí o casco do app pra valer:
+
+- `components/layout/Sidebar.tsx`: menu lateral fixo com o logo, os 6 itens
+  principais (Dashboard, Tarefas, Piloto, WhatsApp, Google Maps, Instagram) e
+  Documentação/Configurações no rodapé, igual à divisão do Nozti. Recolhe pra
+  só ícones (lembrado por sessão) com o mesmo botão que o Nozti tem ao lado do
+  logo. Abaixo de 768px, fica sempre recolhida (não dá espaço pra sidebar
+  larga em celular) - resolvido com um hook novo, `useMediaQuery`.
+- `components/layout/TopBar.tsx`: substitui o `Header.tsx` antigo (apagado).
+  Busca global (abre a paleta ⌘K que já existia no app, sem duplicar lógica),
+  botão "Nova busca" e tema. Perdeu o atalho direto "Ignorados" que o Header
+  tinha - continua acessível pelo filtro de status na tela de leads, só não
+  tem mais o atalho de um clique no topo.
+- `components/layout/AppShell.tsx`: junta sidebar + topo, 14 páginas migradas
+  (removido `<Header/>` e a div `min-h-screen` de cada uma - a altura agora é
+  controlada no casco, não por página).
+- **Verificado de verdade, não só no código**: rodei o front de novo, printei
+  as 9 páginas principais (claro e escuro), testei o botão de recolher a
+  sidebar e testei a tela em largura de celular (390px) - achei e corrigi dois
+  problemas reais nessa checagem (sidebar larga demais no celular, campo de
+  busca cortando o botão "Nova busca"), não só assumi que funcionaria.
 
 ---
 
@@ -408,8 +423,8 @@ automática, sem depender do CNPJ.
       em 04/11/2026.
 - [x] Imagem em vez de link na prévia (WA-09, WA-10) — aprovado e implementado
       em 04/11/2026.
-- [x] Identidade visual do CRM (cores + logo + base do Nozti) — aprovado e
-      implementado em 04/11/2026, exceto a sidebar (seção 4).
+- [x] Identidade visual do CRM (cores + logo + base do Nozti, sidebar
+      incluída) — aprovado e implementado em 04/11/2026 (seção 4).
 - [x] Critério de CNPJ/MEI — aprovado e implementado como consulta manual em
       04/11/2026 (seção 5); não existe forma automática/gratuita hoje.
 - [ ] Decidir se cria um conjunto de mensagens de Instagram (social selling)
@@ -421,6 +436,6 @@ automática, sem depender do CNPJ.
       central nos materiais de venda de redes sociais.
 - [ ] Atualizar `cofre-tudo.txt` e `banco-de-abordagens.html` pra refletir o
       texto novo de WA-09/WA-10 (ficaram fora de sincronia).
-- [ ] Decidir se quer a sidebar de verdade no lugar da barra superior
-      (seção 4) — mudança maior, de arquitetura de navegação.
 - [ ] Decidir se a consulta de CNPJ deve voltar a alimentar o score do lead.
+- [ ] Decidir se quer de volta o atalho de um clique "Ignorados" no topo
+      (perdido na troca pra sidebar; continua acessível pelo filtro de status).

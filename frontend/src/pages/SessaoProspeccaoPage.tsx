@@ -16,7 +16,6 @@ import { Link } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Header } from "@/components/layout/Header"
 import { PageHero } from "@/components/shared/PageHero"
 import { EmptyStateCard } from "@/components/shared/EmptyStateCard"
 import { SiteStatusBadge } from "@/components/leads/SiteStatusBadge"
@@ -290,9 +289,6 @@ export function SessaoProspeccaoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Header />
-
       <main className="mx-auto w-full max-w-2xl space-y-5 px-4 py-6 sm:px-6">
         <Link
           to="/"
@@ -355,6 +351,5 @@ export function SessaoProspeccaoPage() {
           />
         )}
       </main>
-    </div>
   )
 }

@@ -3,7 +3,6 @@ import { Link, useParams } from "react-router-dom"
 import { ArrowLeft, Bot, CheckCircle2, Copy, Hand, MessageCircle, NotebookPen, Send } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Header } from "@/components/layout/Header"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -91,9 +90,7 @@ export function ConversaPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
-      <Header />
-
+    <div className="flex h-full flex-col bg-background text-foreground">
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-3 overflow-hidden px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">

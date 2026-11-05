@@ -1,15 +1,11 @@
 import { ArrowLeft } from "lucide-react"
 import { Link } from "react-router-dom"
-import { Header } from "@/components/layout/Header"
 import { InstagramMetricsDashboard } from "@/components/instagram/InstagramMetricsDashboard"
 import { FunilConversaoInstagram } from "@/components/instagram/FunilConversaoInstagram"
 import { BreakdownNichoInstagram } from "@/components/instagram/BreakdownNichoInstagram"
 
 export function InstagramAnalyticsPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Header />
-
       <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6">
         <Link
           to="/instagram"
@@ -30,6 +26,5 @@ export function InstagramAnalyticsPage() {
           <BreakdownNichoInstagram />
         </div>
       </main>
-    </div>
   )
 }

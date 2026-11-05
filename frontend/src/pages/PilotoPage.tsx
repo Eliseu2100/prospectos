@@ -18,7 +18,6 @@ import {
   Send,
   Undo2,
 } from "lucide-react"
-import { Header } from "@/components/layout/Header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -546,8 +545,6 @@ export function PilotoPage() {
   const { data, isLoading } = usePainelPiloto()
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Header />
       <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-8 sm:px-6">
         {isLoading || !data ? (
           <div className="space-y-5">
@@ -564,6 +561,5 @@ export function PilotoPage() {
           </>
         )}
       </main>
-    </div>
   )
 }

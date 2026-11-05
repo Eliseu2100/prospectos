@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { MessagesSquare, RefreshCw, Settings } from "lucide-react"
-import { Header } from "@/components/layout/Header"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHero } from "@/components/shared/PageHero"
@@ -37,9 +36,6 @@ export function WhatsappPage() {
   const filtradas = conversas.filter(ABAS.find((a) => a.valor === aba)!.filtro)
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Header />
-
       <main className="mx-auto w-full max-w-4xl space-y-4 px-4 py-6 sm:px-6">
         <PageHero
           icone={<MessagesSquare className="size-6" />}
@@ -145,6 +141,5 @@ export function WhatsappPage() {
           </ul>
         )}
       </main>
-    </div>
   )
 }

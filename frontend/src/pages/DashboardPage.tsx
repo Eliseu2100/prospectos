@@ -1,6 +1,5 @@
 import { BarChart3, ListTodo, MapPin, Search, Zap } from "lucide-react"
 import { Link } from "react-router-dom"
-import { Header } from "@/components/layout/Header"
 import { InstagramIcon } from "@/components/icons/InstagramIcon"
 import { VisaoGeralCombinada } from "@/components/dashboard/VisaoGeralCombinada"
 import { FunilConversaoCombinado } from "@/components/dashboard/FunilConversaoCombinado"
@@ -9,9 +8,6 @@ import { NavCard } from "@/components/dashboard/NavCard"
 
 export function DashboardPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Header />
-
       <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6">
         <Link
           to="/leads?nova-busca=1"
@@ -76,6 +72,5 @@ export function DashboardPage() {
           />
         </div>
       </main>
-    </div>
   )
 }

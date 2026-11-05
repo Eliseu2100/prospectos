@@ -2,7 +2,6 @@ import { useState } from "react"
 import { ArrowLeft, Download, Send } from "lucide-react"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
-import { Header } from "@/components/layout/Header"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { SearchInput } from "@/components/filters/SearchInput"
@@ -64,9 +63,6 @@ export function InstagramPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Header />
-
       <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6">
         <Link
           to="/"
@@ -146,6 +142,5 @@ export function InstagramPage() {
           </div>
         )}
       </main>
-    </div>
   )
 }

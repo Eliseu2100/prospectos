@@ -1,15 +1,11 @@
 import { ArrowLeft } from "lucide-react"
 import { Link } from "react-router-dom"
-import { Header } from "@/components/layout/Header"
 import { MetricsDashboard } from "@/components/dashboard/MetricsDashboard"
 import { FunilConversao } from "@/components/dashboard/FunilConversao"
 import { BreakdownNicho } from "@/components/dashboard/BreakdownNicho"
 
 export function AnalyticsPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Header />
-
       <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6">
         <Link
           to="/"
@@ -28,6 +24,5 @@ export function AnalyticsPage() {
           <BreakdownNicho />
         </div>
       </main>
-    </div>
   )
 }
