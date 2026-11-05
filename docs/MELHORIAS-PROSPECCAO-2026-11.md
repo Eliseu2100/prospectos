@@ -302,6 +302,105 @@ duas mensagens — ficam levemente fora de sincronia até alguém regenerá-los.
 
 ---
 
+## 4. Identidade visual do CRM (04/11/2026)
+
+Pedido do Eliseu: usar a estrutura do dashboard
+["Nozti CRM Dashboard" (Dribbble)](https://dribbble.com/shots/27543021-Nozti-CRM-Dashboard)
+como base de experiência, recolorido pra marca (`identidade/design-guide.md`),
+mantendo o nome "Seriax OS" e somando o logotipo da marca.
+
+**O que o Nozti mostra:** sidebar + topo com busca, grade de cartões com ícone
+em círculo colorido + rótulo + número, lista "Top Companies" e um gráfico de
+barras agrupado. **O que o Seriax OS já tinha, antes de qualquer mudança:**
+exatamente esse padrão — `StatTile` (ícone + rótulo + número), `FunilConversaoChart`
+(barras, já consumindo os tokens de cor do tema) e `BreakdownPorNicho` (lista
+ordenada com barra de progresso, o equivalente ao "Top Companies"). A diferença
+real estava só na cor (paleta "Apple" `#0071e3`) e na ausência do nosso logo.
+
+### ✅ Implementado
+- **Tokens de cor recriados** em `frontend/src/index.css` (`:root` e `.dark`),
+  pra bater com `identidade/design-guide.md`: modo escuro usa o azul-meia-noite
+  `#0E1A2F`/cartões `#14243F`/acento `#2563EB` ao pé da letra (é o tema "de
+  marca"); modo claro usa a mesma família de azul sobre branco. Como quase todo
+  componente já usa os tokens semânticos (`bg-card`, `text-primary`, `var(--chart-N)`),
+  a cor mudou em cascata por todo o app, sem precisar editar tela por tela.
+- **`--google-maps-*`** deixou de usar verde (proibido como cor de marca) e
+  passou a ciano→azul. **`--instagram-*`** continua com as cores reais do
+  Instagram — não é cor de marca, é identificação de canal.
+- **`--success`/`--warning` continuam verde/âmbar.** São cor de ESTADO
+  (fechou, atrasado), não identidade — o guia proíbe verde/laranja "como
+  marca", não como sinal funcional. Sinalizando aqui porque é uma leitura, não
+  uma regra explícita.
+- **`StatTile`** ganhou chips de cor por cartão (`azul`, `ciano`, `instagram`,
+  `maps`, além de `destaque`/`alerta` que já existiam), no espírito "um tom por
+  métrica" do Nozti, sempre dentro da família de azul da marca ou da cor do
+  canal.
+- **Logo da marca no cabeçalho** (`Header.tsx`): troquei o ícone genérico
+  (`logo-icon.svg`, gerado por IA, sem relação com a marca) pelo símbolo "ES"
+  (`identidade/logo-simbolo-transparente.png` no escuro,
+  `logo-simbolo-fundo-claro.png` no claro - troca automática por tema). Nome
+  "Seriax OS" mantido do lado, como pedido.
+- **Verificado de verdade**, não só no código: subi o front (`npm run build` +
+  `vite dev`) e o backend juntos, e tirei print de 6 telas (dashboard claro e
+  escuro, leads, Instagram, tarefas, configurações) pra conferir que nada
+  quebrou visualmente antes de considerar pronto.
+
+### Não implementado — e por quê
+A sidebar à esquerda do Nozti **não foi criada**. O Seriax OS navega hoje por
+uma barra superior (pills de "Tarefas", "Piloto", "WhatsApp" etc.), não por um
+menu lateral. Trocar isso por uma sidebar de verdade é uma mudança de
+arquitetura (mexe no layout de toda página, no comportamento mobile, no estado
+de colapsar/expandir), não uma troca de cor - arrisco regressão em todo o app
+se for feito na pressa dentro desta mesma rodada. Ficou só a parte de cor +
+logo + estilo dos cartões, que já cobre a maior parte de "parecer com o
+Nozti". Se quiser a sidebar de verdade, é a próxima tarefa, maior e separada.
+
+---
+
+## 5. Critério de CNPJ / MEI (04/11/2026)
+
+Pedido do Eliseu: focar em cliente que paga sem apertar o orçamento, evitando
+perder tempo com MEI de baixo poder aquisitivo - o critério que o Vídeo C
+(seção 3) citou.
+
+**Por que não dá pra ser um filtro automático na busca:** o Google Maps não
+devolve CNPJ, e pesquisei de verdade antes de prometer algo - não existe hoje
+API gratuita e confiável de busca de CNPJ por nome da empresa. BrasilAPI,
+ReceitaWS e Minha Receita só aceitam o número exato do CNPJ. Busca por razão
+social é paga (CNPJ.ws Comercial) ou ainda nem lançou (CNPJ Aberto, previsto
+pra 29/12/2026). E mesmo que existisse, a maioria dos nossos leads **não tem
+site** por definição do próprio funil - não haveria de onde raspar o CNPJ.
+
+**✅ O que implementei em vez disso:** uma consulta manual, no momento certo do
+funil - quando o CNPJ já está em mãos (o Eliseu pede ao cliente, é o mesmo
+dado que vai pro contrato de qualquer forma):
+
+- `backend/cnpj.py`: consulta a Receita Federal via BrasilAPI (gratuita, sem
+  chave), devolve razão social, se é MEI, porte, situação cadastral, capital
+  social e idade da empresa, e calcula `ticket_alto_provavel` (não é MEI + está
+  ativa + 2+ anos de empresa).
+- Nova rota `POST /api/leads/<id>/consultar-cnpj`, nova coluna `cnpj`/`cnpj_dados`
+  na tabela de leads.
+- Frontend: cartão novo `CnpjCard.tsx` no detalhe do lead, ao lado da
+  estratégia - campo pra colar o CNPJ, resultado com selo colorido (MEI =
+  aviso, não-MEI estabelecida = bom sinal).
+- 20 testes novos (`test_cnpj.py` + rota em `test_tarefas_e_score.py`). Suíte
+  completa: 563 passando.
+
+**O sinal que JÁ existia e cobre parte disso sem precisar de CNPJ:** o score
+do lead já soma até 30 pontos pelo número de avaliações no Google
+(`rotas_leads.calcular_score`) - um negócio com muitas avaliações tende a ser
+mais estabelecido que um MEI recém-aberto. Não é CNPJ, mas já empurra na
+direção certa sem precisar de nenhuma consulta manual.
+
+**Backlog, não implementado:** usar a consulta de CNPJ pra alimentar de volta
+o score do lead (hoje ela só aparece no cartão, não muda a ordenação da
+lista), e considerar os campos `ticket` do `playbook_nichos.json` (já
+diferenciam nicho de ticket alto) como mais um critério de priorização
+automática, sem depender do CNPJ.
+
+---
+
 ## Resumo do que ficou pendente de decisão do Eliseu
 
 - [x] `-resume` em `jobs.py` — aprovado e implementado em 04/11/2026.
@@ -309,6 +408,10 @@ duas mensagens — ficam levemente fora de sincronia até alguém regenerá-los.
       em 04/11/2026.
 - [x] Imagem em vez de link na prévia (WA-09, WA-10) — aprovado e implementado
       em 04/11/2026.
+- [x] Identidade visual do CRM (cores + logo + base do Nozti) — aprovado e
+      implementado em 04/11/2026, exceto a sidebar (seção 4).
+- [x] Critério de CNPJ/MEI — aprovado e implementado como consulta manual em
+      04/11/2026 (seção 5); não existe forma automática/gratuita hoje.
 - [ ] Decidir se cria um conjunto de mensagens de Instagram (social selling)
       no `cofre-abordagens`, ao lado do que já existe pra WhatsApp. Ainda não
       criado — o Eliseu aprovou a proposta em geral, mas este item específico
@@ -316,7 +419,8 @@ duas mensagens — ficam levemente fora de sincronia até alguém regenerá-los.
       do Cofre; fica para uma próxima rodada dedicada a isso.
 - [ ] Confirmar se quer que eu documente "diagnóstico gratuito" como técnica
       central nos materiais de venda de redes sociais.
-- [ ] Decidir sobre os critérios extras do Vídeo C (CNPJ > 3 anos, não ser MEI,
-      não ter anúncio ativo no Google) — pedem integração nova, não só config.
 - [ ] Atualizar `cofre-tudo.txt` e `banco-de-abordagens.html` pra refletir o
       texto novo de WA-09/WA-10 (ficaram fora de sincronia).
+- [ ] Decidir se quer a sidebar de verdade no lugar da barra superior
+      (seção 4) — mudança maior, de arquitetura de navegação.
+- [ ] Decidir se a consulta de CNPJ deve voltar a alimentar o score do lead.

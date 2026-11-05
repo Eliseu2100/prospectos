@@ -45,8 +45,21 @@ export function Header({ onNovaBusca, onVerIgnorados }: HeaderProps) {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-background/75 backdrop-blur-xl backdrop-saturate-150">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-        <Link to="/" className="flex items-center gap-2" aria-label="Seriax OS - início">
-          <img src="/logo-icon.svg" alt="" className="size-8 rounded-[9px] ring-1 ring-black/5 dark:ring-white/10" />
+        <Link to="/" className="flex items-center gap-2.5" aria-label="Seriax OS - início">
+          <span className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-primary/10 ring-1 ring-black/5 dark:ring-white/10">
+            {/* símbolo da marca (ES) - enquadrado nas duas letras, a tag </> fica cortada
+                de propósito: em 36px ela vira ruído, não detalhe (identidade/design-guide.md) */}
+            <img
+              src="/logo-simbolo-fundo-claro.png"
+              alt=""
+              className="absolute left-1/2 top-[7%] h-[85%] w-auto -translate-x-1/2 object-contain dark:hidden"
+            />
+            <img
+              src="/logo-simbolo-transparente.png"
+              alt=""
+              className="absolute left-1/2 top-[7%] hidden h-[85%] w-auto -translate-x-1/2 object-contain dark:block"
+            />
+          </span>
           <h1 className="text-[17px] font-semibold tracking-tight">
             Seriax <span className="text-muted-foreground">OS</span>
           </h1>

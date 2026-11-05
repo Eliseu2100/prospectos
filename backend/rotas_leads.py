@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 
 from flask import Blueprint, Response, jsonify, request
 
+import cnpj
 import db
 import diagnostico
 import ia
@@ -99,13 +100,19 @@ def _enriquecer_lead_para_resposta(lead_dict):
         lead_dict.get("nota"), lead_dict.get("num_avaliacoes"), lead_dict.get("site_status"),
         lead_dict.get("prioridade_nicho_pontos"),
     )
-    # o raio-X do site sai da API como objeto, não como string JSON
+    # o raio-X do site e os dados de CNPJ saem da API como objeto, não string JSON
     try:
         lead_dict["site_checklist"] = (
             json.loads(lead_dict["site_checklist"]) if lead_dict.get("site_checklist") else None
         )
     except (TypeError, ValueError):
         lead_dict["site_checklist"] = None
+    try:
+        lead_dict["cnpj_dados"] = (
+            json.loads(lead_dict["cnpj_dados"]) if lead_dict.get("cnpj_dados") else None
+        )
+    except (TypeError, ValueError):
+        lead_dict["cnpj_dados"] = None
     return lead_dict
 
 
@@ -717,6 +724,44 @@ def reanalisar_site(place_id):
         "site_problemas": problemas_texto,
         "site_checklist": checklist,
     })
+
+
+@bp.route("/api/leads/<place_id>/consultar-cnpj", methods=["POST"])
+def consultar_cnpj_do_lead(place_id):
+    """Consulta o CNPJ do lead na Receita Federal (gratuito, sem chave) e
+    qualifica poder aquisitivo: MEI, idade da empresa, situação, capital social.
+    O CNPJ não vem do Maps - o Eliseu cola aqui depois de pedir ao cliente."""
+    corpo = request.get_json(silent=True) or {}
+    cnpj_bruto = str(corpo.get("cnpj", "")).strip()
+    if not cnpj_bruto:
+        return jsonify({"erro": "Informe o CNPJ."}), 400
+
+    conexao = db.conectar()
+    try:
+        lead = conexao.execute("SELECT 1 FROM leads WHERE place_id = ?", (place_id,)).fetchone()
+    finally:
+        conexao.close()
+    if lead is None:
+        return jsonify({"erro": "lead não encontrado"}), 404
+
+    try:
+        dados = cnpj.consultar_cnpj(cnpj_bruto)
+    except cnpj.ErroConsultaCnpj as erro:
+        return jsonify({"erro": str(erro)}), 400
+
+    agora = datetime.now().isoformat(timespec="seconds")
+    conexao = db.conectar()
+    try:
+        conexao.execute(
+            "UPDATE leads SET cnpj = ?, cnpj_dados = ?, cnpj_consultado_em = ?, "
+            "atualizado_em = ? WHERE place_id = ?",
+            (dados["cnpj"], json.dumps(dados, ensure_ascii=False), agora, agora, place_id),
+        )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+    return jsonify({"ok": True, "cnpj_dados": dados})
 
 
 @bp.route("/api/buscar/historico")

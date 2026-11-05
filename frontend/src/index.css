@@ -62,101 +62,110 @@
 }
 
 :root {
-    /* Seriax OS - linguagem visual "Apple": tela cinza-clara (#f5f5f7), cartões
-       brancos sem borda aparente, tinta #1d1d1f e UM acento azul (#0071e3) só
-       para ações. Cor de status (verde/laranja/vermelho) só onde carrega sentido. */
-    --background: #f5f5f7;
-    --foreground: #1d1d1f;
+    /* Seriax OS - identidade da marca (identidade/design-guide.md): branco e
+       cinza-azulado claro no modo claro, com UM acento azul (#2563EB, a cor da
+       marca) para ações e links. --success/--warning continuam verde/âmbar de
+       propósito: são cor de ESTADO (fechou/atrasado), não cor de marca - o
+       guia proíbe verde/laranja como identidade, não como sinal funcional. */
+    --background: #f4f6fa;
+    --foreground: #0e1a2f;
     --card: #ffffff;
-    --card-foreground: #1d1d1f;
+    --card-foreground: #0e1a2f;
     --popover: #ffffff;
-    --popover-foreground: #1d1d1f;
-    --primary: #0071e3;
+    --popover-foreground: #0e1a2f;
+    --primary: #2563eb;
     --primary-foreground: #ffffff;
-    --secondary: #e8e8ed;
-    --secondary-foreground: #1d1d1f;
-    --muted: #f0f0f3;
-    --muted-foreground: #6e6e73;
-    --accent: #e8e8ed;
-    --accent-foreground: #1d1d1f;
-    --destructive: #e30000;
-    --border: rgb(0 0 0 / 0.07);
-    --input: #d2d2d7;
-    --ring: #0071e3;
-    --info: #0066cc;
-    --warning: #b64400;
+    --secondary: #e7eefb;
+    --secondary-foreground: #0e1a2f;
+    --muted: #eef2f9;
+    /* mais escuro que o #94a3b8 do gabarito: aquele hex é calibrado para o fundo
+       escuro (6,8:1 lá); sobre branco ele cai pra ~2,6:1, abaixo do WCAG AA */
+    --muted-foreground: #5b6b82;
+    --accent: #e7eefb;
+    --accent-foreground: #0e1a2f;
+    --destructive: #dc2626;
+    --border: rgb(14 26 47 / 0.08);
+    --input: #cbd5e1;
+    --ring: #2563eb;
+    --info: #2563eb;
+    --warning: #b45309;
     --warning-foreground: #ffffff;
-    --success: #1f9d55;
+    --success: #15803d;
     --status-purple: #8944ab;
-    --link: #0066cc;
+    --link: #2563eb;
     --instagram-start: #833ab4;
     --instagram-mid: #e1306c;
     --instagram-end: #f77737;
-    --google-maps-start: #1f9d55;
-    --google-maps-mid: #0071e3;
-    --google-maps-end: #0066cc;
+    /* ciano de uso restrito (#38bdf8) até o azul principal - sem verde, igual
+       pede o gabarito; o Maps deixa de emprestar a cor do pino do Google */
+    --google-maps-start: #38bdf8;
+    --google-maps-mid: #3b82f6;
+    --google-maps-end: #2563eb;
     /* rampa sequencial (claro → escuro) em azul: estágios do funil e magnitudes */
-    --chart-1: #b3d4f6;
-    --chart-2: #6aaaf0;
-    --chart-3: #2b88ea;
-    --chart-4: #0071e3;
-    --chart-5: #00478f;
+    --chart-1: #bfdbfe;
+    --chart-2: #93c5fd;
+    --chart-3: #3b82f6;
+    --chart-4: #2563eb;
+    --chart-5: #1e3a8a;
     --radius: 0.875rem;
-    --sidebar: #fafafc;
-    --sidebar-foreground: #1d1d1f;
-    --sidebar-primary: #0071e3;
+    --sidebar: #ffffff;
+    --sidebar-foreground: #0e1a2f;
+    --sidebar-primary: #2563eb;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #e8e8ed;
-    --sidebar-accent-foreground: #1d1d1f;
-    --sidebar-border: rgb(0 0 0 / 0.07);
-    --sidebar-ring: #0071e3;
+    --sidebar-accent: #e7eefb;
+    --sidebar-accent-foreground: #0e1a2f;
+    --sidebar-border: rgb(14 26 47 / 0.08);
+    --sidebar-ring: #2563eb;
 }
 
 .dark {
-    --background: #000000;
-    --foreground: #f5f5f7;
-    --card: #1c1c1e;
-    --card-foreground: #f5f5f7;
-    --popover: #1c1c1e;
-    --popover-foreground: #f5f5f7;
-    --primary: #0a84ff;
+    /* Modo escuro = a identidade oficial ao pé da letra (identidade/design-guide.md):
+       fundo #0e1a2f, cartões #14243f, acento #2563eb/#3b82f6, texto branco e
+       cinza-azulado #94a3b8. Este é o tema "de marca" por definição. */
+    --background: #0e1a2f;
+    --foreground: #ffffff;
+    --card: #14243f;
+    --card-foreground: #ffffff;
+    --popover: #14243f;
+    --popover-foreground: #ffffff;
+    --primary: #2563eb;
     --primary-foreground: #ffffff;
-    --secondary: #2c2c2e;
-    --secondary-foreground: #f5f5f7;
-    --muted: #2c2c2e;
-    --muted-foreground: #98989d;
-    --accent: #2c2c2e;
-    --accent-foreground: #f5f5f7;
-    --destructive: #ff453a;
+    --secondary: #1b2c4a;
+    --secondary-foreground: #ffffff;
+    --muted: #1b2c4a;
+    --muted-foreground: #94a3b8;
+    --accent: #1b2c4a;
+    --accent-foreground: #ffffff;
+    --destructive: #f87171;
     --border: rgb(255 255 255 / 0.08);
     --input: rgb(255 255 255 / 0.16);
-    --ring: #0a84ff;
-    --info: #2997ff;
-    --warning: #ff9f0a;
-    --warning-foreground: #1d1d1f;
-    --success: #30d158;
+    --ring: #3b82f6;
+    --info: #3b82f6;
+    --warning: #fbbf24;
+    --warning-foreground: #0e1a2f;
+    --success: #34d399;
     --status-purple: #bf5af2;
-    --link: #2997ff;
+    --link: #3b82f6;
     --instagram-start: #9b4fd0;
     --instagram-mid: #f04a84;
     --instagram-end: #ff8f4d;
-    --google-maps-start: #30d158;
-    --google-maps-mid: #0a84ff;
-    --google-maps-end: #2997ff;
-    /* rampa no escuro: escuro → claro (o mais claro se destaca no fundo preto) */
-    --chart-1: #0b3a66;
-    --chart-2: #0a5cb0;
-    --chart-3: #0a84ff;
-    --chart-4: #5eaeff;
-    --chart-5: #a9d3ff;
-    --sidebar: #1c1c1e;
-    --sidebar-foreground: #f5f5f7;
-    --sidebar-primary: #0a84ff;
+    --google-maps-start: #38bdf8;
+    --google-maps-mid: #3b82f6;
+    --google-maps-end: #2563eb;
+    /* rampa no escuro: escuro → claro (o mais claro se destaca no fundo escuro) */
+    --chart-1: #1e3a8a;
+    --chart-2: #2563eb;
+    --chart-3: #3b82f6;
+    --chart-4: #93c5fd;
+    --chart-5: #dbeafe;
+    --sidebar: #14243f;
+    --sidebar-foreground: #ffffff;
+    --sidebar-primary: #2563eb;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #2c2c2e;
-    --sidebar-accent-foreground: #f5f5f7;
+    --sidebar-accent: #1b2c4a;
+    --sidebar-accent-foreground: #ffffff;
     --sidebar-border: rgb(255 255 255 / 0.08);
-    --sidebar-ring: #0a84ff;
+    --sidebar-ring: #3b82f6;
 }
 
 @layer base {

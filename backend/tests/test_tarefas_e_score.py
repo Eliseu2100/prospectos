@@ -220,6 +220,71 @@ class TestReanalisarSite:
         assert cliente.post("/api/leads/nao-existe/reanalisar-site").status_code == 404
 
 
+class TestConsultarCnpjDoLead:
+    def test_sem_cnpj_no_corpo_retorna_400(self, cliente):
+        inserir_lead("lead-1")
+        resposta = cliente.post("/api/leads/lead-1/consultar-cnpj", json={})
+        assert resposta.status_code == 400
+
+    def test_lead_inexistente_retorna_404(self, cliente):
+        resposta = cliente.post(
+            "/api/leads/nao-existe/consultar-cnpj", json={"cnpj": "19131243000197"}
+        )
+        assert resposta.status_code == 404
+
+    def test_cnpj_invalido_retorna_400_sem_gravar(self, cliente):
+        inserir_lead("lead-1")
+        resposta = cliente.post("/api/leads/lead-1/consultar-cnpj", json={"cnpj": "123"})
+        assert resposta.status_code == 400
+        lead = cliente.get("/api/leads?status=novo").get_json()["leads"][0]
+        assert lead["cnpj"] is None
+
+    def test_consulta_com_sucesso_grava_no_lead(self, cliente, monkeypatch):
+        import cnpj as modulo_cnpj
+
+        resultado_fake = {
+            "cnpj": "19131243000197",
+            "razao_social": "CONSTRUTORA EXEMPLO LTDA",
+            "nome_fantasia": "Construtora Exemplo",
+            "mei": False,
+            "porte": "DEMAIS",
+            "situacao_cadastral": "ATIVA",
+            "natureza_juridica": "Sociedade Empresária Limitada",
+            "capital_social": 500000,
+            "data_inicio_atividade": "2018-01-01",
+            "idade_meses": 95,
+            "ticket_alto_provavel": True,
+        }
+        monkeypatch.setattr(modulo_cnpj, "consultar_cnpj", lambda bruto: resultado_fake)
+        inserir_lead("lead-1")
+
+        resposta = cliente.post(
+            "/api/leads/lead-1/consultar-cnpj", json={"cnpj": "19.131.243/0001-97"}
+        )
+        assert resposta.status_code == 200
+        assert resposta.get_json()["cnpj_dados"]["ticket_alto_provavel"] is True
+
+        lead = cliente.get("/api/leads?status=novo").get_json()["leads"][0]
+        assert lead["cnpj"] == "19131243000197"
+        assert lead["cnpj_dados"]["razao_social"] == "CONSTRUTORA EXEMPLO LTDA"
+        assert lead["cnpj_dados"]["mei"] is False
+
+    def test_erro_da_receita_vira_400_com_mensagem(self, cliente, monkeypatch):
+        import cnpj as modulo_cnpj
+
+        def explode(bruto):
+            raise modulo_cnpj.ErroConsultaCnpj("CNPJ não encontrado na Receita Federal. Confira o número.")
+
+        monkeypatch.setattr(modulo_cnpj, "consultar_cnpj", explode)
+        inserir_lead("lead-1")
+
+        resposta = cliente.post(
+            "/api/leads/lead-1/consultar-cnpj", json={"cnpj": "19131243000197"}
+        )
+        assert resposta.status_code == 400
+        assert "não encontrado" in resposta.get_json()["erro"]
+
+
 class TestHistoricoDeBuscas:
     def test_lista_ultimas_buscas(self, cliente):
         conexao = sqlite3.connect(db.CAMINHO_BANCO)

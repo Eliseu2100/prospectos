@@ -1,5 +1,6 @@
 import { httpClient } from "@/services/httpClient"
 import type {
+  CnpjDados,
   FiltrosLeads,
   GerarMensagemResposta,
   HistoricoStatusItem,
@@ -130,6 +131,12 @@ export const leadsService = {
       site_problemas: string | null
       site_checklist: { tem: string[]; falta: string[] } | null
     }>(`/api/leads/${encodeURIComponent(placeId)}/reanalisar-site`),
+
+  consultarCnpj: (placeId: string, cnpj: string) =>
+    httpClient.post<{ ok: true; cnpj_dados: CnpjDados }>(
+      `/api/leads/${encodeURIComponent(placeId)}/consultar-cnpj`,
+      { cnpj }
+    ),
 }
 
 export const EXPORTAR_CSV_URL = "/api/exportar"

@@ -36,21 +36,25 @@ export function VisaoGeralCombinada() {
             rotulo="Leads ativos"
             valor={metricas.total}
             icone={<Users className="size-4" />}
+            variante="azul"
           />
           <StatTile
             rotulo="No Maps"
             valor={metricas.maps.total}
             icone={<MapPin className="size-4" />}
+            variante="maps"
           />
           <StatTile
             rotulo="No Instagram"
             valor={metricas.instagram.total}
             icone={<InstagramIcon className="size-4" />}
+            variante="instagram"
           />
           <StatTile
             rotulo="Contatados"
             valor={metricas.por_status.contatado ?? 0}
             icone={<CheckCircle2 className="size-4" />}
+            variante="ciano"
           />
           <StatTile
             rotulo="Fechados"

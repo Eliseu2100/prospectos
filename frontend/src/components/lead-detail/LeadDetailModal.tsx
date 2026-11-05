@@ -14,6 +14,7 @@ import { SiteStatusBadge } from "@/components/leads/SiteStatusBadge"
 import { InstagramIcon } from "@/components/icons/InstagramIcon"
 import { EstrategiaCard } from "@/components/lead-detail/EstrategiaCard"
 import { RaioXSite } from "@/components/lead-detail/RaioXSite"
+import { CnpjCard } from "@/components/lead-detail/CnpjCard"
 import { LeadStatusSelect } from "@/components/lead-detail/LeadStatusSelect"
 import { LeadTagsFollowupForm } from "@/components/lead-detail/LeadTagsFollowupForm"
 import { LeadObservacoesForm } from "@/components/lead-detail/LeadObservacoesForm"
@@ -131,6 +132,8 @@ export function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
           <div className="grid min-w-0 gap-5 xl:grid-cols-2 xl:items-start">
             <div className="min-w-0 space-y-5">
               <EstrategiaCard lead={lead} />
+
+              <CnpjCard lead={lead} consultarCnpj={mutations.consultarCnpj} />
 
               {lead.site_checklist && <RaioXSite checklist={lead.site_checklist} />}
             </div>

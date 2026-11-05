@@ -114,6 +114,21 @@ export function useLeadMutations(placeId: string) {
     },
   })
 
+  const consultarCnpj = useMutation({
+    mutationFn: (cnpj: string) => leadsService.consultarCnpj(placeId, cnpj),
+    onSuccess: (resultado) => {
+      invalidarListaEMetricas()
+      const { mei, ticket_alto_provavel } = resultado.cnpj_dados
+      if (mei) {
+        toast.warning("É MEI - ticket tende a ser mais baixo.")
+      } else if (ticket_alto_provavel) {
+        toast.success("Não é MEI, empresa estabelecida - bom perfil de ticket.")
+      } else {
+        toast.success("CNPJ consultado.")
+      }
+    },
+  })
+
   return {
     atualizarStatus,
     salvarTagsFollowup,
@@ -123,5 +138,6 @@ export function useLeadMutations(placeId: string) {
     ignorar,
     reanalisarSite,
     excluirDefinitivamente,
+    consultarCnpj,
   }
 }

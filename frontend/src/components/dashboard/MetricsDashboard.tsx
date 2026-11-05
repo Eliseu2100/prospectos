@@ -22,16 +22,19 @@ export function MetricsDashboard() {
         rotulo="Leads ativos"
         valor={metricas.total}
         icone={<Users className="size-4" />}
+        variante="azul"
       />
       <StatTile
         rotulo="Contatados"
         valor={metricas.por_status.contatado ?? 0}
         icone={<CheckCircle2 className="size-4" />}
+        variante="ciano"
       />
       <StatTile
         rotulo="Responderam"
         valor={metricas.por_status.respondeu ?? 0}
         icone={<MessageCircle className="size-4" />}
+        variante="maps"
       />
       <StatTile
         rotulo="Fechados"

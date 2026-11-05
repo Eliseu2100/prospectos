@@ -477,6 +477,11 @@ def migrar_banco(conexao):
         # bônus de score por nicho prioritário do Eliseu (prioridade_nicho.pontos_prioridade);
         # fica gravado, não recalculado a cada leitura, pra SQL_SCORE poder ordenar no banco
         "prioridade_nicho_pontos": "INTEGER NOT NULL DEFAULT 0",
+        # consulta manual de CNPJ (cnpj.py) - qualifica poder aquisitivo do lead;
+        # fica vazio até o Eliseu consultar, não vem do Maps
+        "cnpj": "TEXT",
+        "cnpj_dados": "TEXT",  # JSON de cnpj.consultar_cnpj
+        "cnpj_consultado_em": "TEXT",
     }
     for nome, tipo in novas_colunas.items():
         if nome not in colunas_existentes:

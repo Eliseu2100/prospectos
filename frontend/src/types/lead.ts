@@ -45,6 +45,26 @@ export interface Lead {
   site_problemas: string | null
   site_checklist: { tem: string[]; falta: string[] } | null
   instagram_url: string | null
+  prioridade_nicho_pontos?: number | null
+  cnpj: string | null
+  cnpj_dados: CnpjDados | null
+  cnpj_consultado_em: string | null
+}
+
+/** Resultado de cnpj.consultar_cnpj (backend) - qualifica poder aquisitivo
+ * do lead: MEI ou não, idade da empresa, situação na Receita. */
+export interface CnpjDados {
+  cnpj: string
+  razao_social: string | null
+  nome_fantasia: string | null
+  mei: boolean
+  porte: string | null
+  situacao_cadastral: string | null
+  natureza_juridica: string | null
+  capital_social: number | null
+  data_inicio_atividade: string | null
+  idade_meses: number | null
+  ticket_alto_provavel: boolean
 }
 
 export interface HistoricoStatusItem {
