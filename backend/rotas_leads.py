@@ -526,11 +526,12 @@ def gerar_copy_para_lead(conexao, lead, tipo="contato", mensagens_anteriores=Non
             checklist = json.loads(lead["site_checklist"]) if lead["site_checklist"] else None
         except (TypeError, ValueError):
             checklist = None
-        if checklist and checklist.get("falta"):
+        faltas = [f for f in (checklist or {}).get("falta", []) if f in processar.FALTAS_CONFIAVEIS]
+        if checklist and faltas:
             resumo_raio_x = (
                 "Raio-X do site (dados reais): TEM "
                 + (", ".join(checklist.get("tem", [])) or "quase nada")
-                + "; FALTA " + ", ".join(checklist["falta"]) + "."
+                + "; FALTA " + ", ".join(faltas) + "."
             )
             conteudo_site = f"{conteudo_site}\n{resumo_raio_x}" if conteudo_site else resumo_raio_x
 

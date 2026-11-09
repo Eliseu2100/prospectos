@@ -5,6 +5,7 @@ Nada toca rede: Evolution (mensageiros) e IA são substituídos por monkeypatch,
 o cofre de credenciais por um dict.
 """
 
+import json
 import sqlite3
 import sys
 from datetime import datetime, timedelta
@@ -145,12 +146,16 @@ class TestFila:
             conexao.close()
         assert [l["place_id"] for l in fila] == ["forte", "fraco"]
 
-    def test_so_chama_quem_nao_tem_site(self, banco):
+    def test_site_sem_vem_antes_de_site_ruim_mesmo_com_score_maior(self, banco):
+        """Prioridade em duas camadas (decisão do Eliseu em 08/11/2026): todo sem_site
+        vem antes de qualquer site_ruim, mesmo quando o site_ruim tem nota/avaliações
+        bem mais fortes - a camada manda mais que o score."""
         criar_lead("sem", site_status="sem_site")
         criar_lead("ruim", site_status="site_ruim", nota=5.0, avaliacoes=500)
         conexao = db.conectar()
         try:
-            assert [l["place_id"] for l in piloto.proximos_leads(conexao, piloto.CONFIG_PADRAO)] == ["sem"]
+            fila = piloto.proximos_leads(conexao, piloto.CONFIG_PADRAO)
+            assert [l["place_id"] for l in fila] == ["sem", "ruim"]
         finally:
             conexao.close()
 
@@ -177,6 +182,39 @@ class TestPrimeiroContato:
         assert b["status"] == "contatado"
         assert lead("a")["piloto_status"] is None
         assert piloto._estado["proximo_contato_em"] is not None
+
+    def test_manda_print_do_site_modelo_depois_do_primeiro_contato(self, whatsapp, ia_falsa, monkeypatch):
+        """Decisão do Eliseu em 08/11/2026: automático, sem condição - todo lead
+        novo recebe o print do site modelo do setor da vez, logo após o 1º contato
+        de texto (não substitui, complementa)."""
+        enviados_imagem = []
+
+        def enviar_imagem(telefone, url, legenda=None):
+            enviados_imagem.append((telefone, url, legenda))
+            return "ID-IMG", None
+
+        monkeypatch.setattr(mensageiros, "enviar_whatsapp_imagem", enviar_imagem)
+        db.salvar_config("site_modelo_atual", json.dumps({
+            "nicho": "energia solar", "link": "https://exemplo.netlify.app",
+            "imagem_url": "https://exemplo.com/print.png", "legenda_print": "Um exemplo do que eu faço.",
+        }))
+        criar_lead("a")
+        ligar()
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+
+        assert len(whatsapp.enviados) == 1  # o texto do 1º contato continua saindo
+        assert enviados_imagem == [("65996757327", "https://exemplo.com/print.png", "Um exemplo do que eu faço.")]
+
+    def test_sem_site_modelo_configurado_nao_manda_imagem(self, whatsapp, ia_falsa, monkeypatch):
+        enviados_imagem = []
+        monkeypatch.setattr(
+            mensageiros, "enviar_whatsapp_imagem",
+            lambda telefone, url, legenda=None: enviados_imagem.append((telefone, url, legenda)),
+        )
+        criar_lead("a")
+        ligar()
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+        assert enviados_imagem == []
 
     def test_respeita_intervalo(self, whatsapp, ia_falsa):
         criar_lead("a")
@@ -396,11 +434,51 @@ class TestFollowup:
         finally:
             conexao.close()
 
-    def test_site_ruim_nao_recebe_followup(self, banco):
+    def test_primeiro_followup_oferece_link_do_site_modelo(self, whatsapp, ia_falsa):
+        """1º follow-up (D2) sempre oferece o link do site modelo - automático,
+        não depende de o lead ter reagido ao print do 1º contato (08/11/2026).
+        Texto fixo (não escrito pela IA), pra garantir que o link realmente sai."""
+        db.salvar_config("site_modelo_atual", json.dumps({
+            "nicho": "energia solar", "link": "https://exemplo.netlify.app",
+            "texto_oferta_link": "Dá uma olhada: {link}",
+        }))
+        contatado_pelo_piloto(dias_atras=2)
+        ligar()
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+
+        assert whatsapp.enviados == [
+            ("65996757327", "Follow-up Clínica A\n\nDá uma olhada: https://exemplo.netlify.app")
+        ]
+
+    def test_segundo_followup_nao_repete_o_link(self, whatsapp, ia_falsa):
+        db.salvar_config("site_modelo_atual", json.dumps({
+            "nicho": "energia solar", "link": "https://exemplo.netlify.app",
+        }))
+        contatado_pelo_piloto(dias_atras=5, follow_ups=1)
+        ligar()
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+
+        assert len(whatsapp.enviados) == 1
+        assert "exemplo.netlify.app" not in whatsapp.enviados[0][1]
+
+    def test_site_ruim_tambem_recebe_followup(self, banco):
+        """Decisão do Eliseu em 08/11/2026: site_ruim entrou na fila do piloto (depois
+        do sem_site), então também recebe follow-up como qualquer outro lead dele."""
         contatado_pelo_piloto(dias_atras=2)
         conexao = db.conectar()
         try:
             conexao.execute("UPDATE leads SET site_status = 'site_ruim'")
+            conexao.commit()
+            assert piloto.leads_para_followup(conexao, SEGUNDA_10H) != []
+        finally:
+            conexao.close()
+
+    def test_site_ok_nao_recebe_followup(self, banco):
+        """site_ok nunca entrou em SITUACOES_SITE_ALVO - continua de fora."""
+        contatado_pelo_piloto(dias_atras=2)
+        conexao = db.conectar()
+        try:
+            conexao.execute("UPDATE leads SET site_status = 'site_ok'")
             conexao.commit()
             assert piloto.leads_para_followup(conexao, SEGUNDA_10H) == []
         finally:
@@ -527,3 +605,45 @@ class TestAjustarSaudacao:
     def test_troca_pela_hora_atual(self, monkeypatch):
         monkeypatch.setattr(ia, "saudacao_por_horario", lambda: "Boa tarde")
         assert ia.ajustar_saudacao("Bom dia, Ana! Tudo bem? boa noite") == "Boa tarde, Ana! Tudo bem? boa tarde"
+
+
+class TestReconferirSite:
+    def _lead_site_ruim(self):
+        criar_lead("a", nome="CN Suntech", site_status="site_ruim")
+        conexao = db.conectar()
+        try:
+            conexao.execute("UPDATE leads SET site_url = 'http://cnsuntech.com.br', "
+                            "site_problemas = 'site fora do ar (não abre)', mensagem_gerada = 'texto velho' "
+                            "WHERE place_id = 'a'")
+            conexao.commit()
+        finally:
+            conexao.close()
+
+    def test_site_que_voltou_sai_da_fila_e_nao_recebe_mensagem(self, whatsapp, ia_falsa, monkeypatch):
+        self._lead_site_ruim()
+        monkeypatch.setattr(processar, "avaliar_site_completo", lambda url: ("ok", [], {"tem": [], "falta": []}))
+        ligar()
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+
+        assert whatsapp.enviados == []
+        a = lead("a")
+        assert a["site_status"] == "site_ok"
+        assert a["piloto_status"] is None
+
+    def test_problema_que_mudou_atualiza_o_lead_e_descarta_o_texto_em_cache(self, whatsapp, ia_falsa, monkeypatch):
+        self._lead_site_ruim()
+        monkeypatch.setattr(processar, "avaliar_site_completo",
+                            lambda url: ("ruim", ["não adaptado para celular"], {"tem": [], "falta": []}))
+        ligar()
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+
+        assert len(whatsapp.enviados) == 1
+        assert lead("a")["site_problemas"] == "não adaptado para celular"
+        assert "texto velho" not in whatsapp.enviados[0][1]
+
+
+def test_corrige_apresentacao_eu_virgula_nome():
+    db.salvar_config("vendedor_nome", "Eliseu Souza")
+    assert ia.corrigir_apresentacao("Bom dia, eu, Eliseu, notei que o site demora.") == \
+        "Bom dia, sou o Eliseu e notei que o site demora."
+    assert ia.corrigir_apresentacao("Bom dia, aqui é o Eliseu.") == "Bom dia, aqui é o Eliseu."

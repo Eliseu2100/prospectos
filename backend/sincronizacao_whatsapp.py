@@ -85,6 +85,9 @@ FRASES_AUTOMATICAS_FORTES = (
 FRASES_AUTOMATICAS_FRACAS = (
     "em que podemos ajudar", "como podemos ajudar", "para agilizar", "para facilitar",
     "nome completo", "somos da", "somos a", "aqui e a", "aqui e o",
+    # atendente virtual que "encaminha para a equipe" (confirmado em 09/11: Art, LF, Sol Livre)
+    "encaminh", "quer que eu", "conectar com", "nossa equipe", "responder por aqui",
+    "respondera por aqui", "neste chat",
 )
 SEGUNDOS_MAX_RESPOSTA_ROBO = 90
 # texto longo em poucos segundos: ninguém lê a nossa mensagem e digita isso tão rápido
@@ -322,6 +325,7 @@ def reclassificar_respostas_automaticas():
               AND EXISTS (
                 SELECT 1 FROM mensagens_conversa m WHERE m.canal = 'maps' AND m.lead_ref = l.place_id
                   AND m.automatica = 1)
+              AND COALESCE(l.piloto_status, '') != 'humano'
             """
         ).fetchall()
         for linha in so_robo:

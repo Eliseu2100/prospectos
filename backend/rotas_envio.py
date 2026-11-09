@@ -235,6 +235,30 @@ def enviar_e_registrar(canal, lead_ref, lead, texto):
     return status_novo
 
 
+def enviar_imagem_e_registrar(canal, lead_ref, lead, url_imagem, legenda=None):
+    """Igual enviar_e_registrar, mas pra imagem (ex.: print do site modelo).
+    Não mexe no status do lead - isso já aconteceu no primeiro contato de texto,
+    que sempre sai antes. Conta no mesmo limite diário de `_enviados_hoje`
+    (é um envio de WhatsApp de verdade a mais, conta pra saúde da conta).
+    Levanta mensageiros.ErroEnvio se o envio falhar - nada é gravado nesse caso."""
+    telefone = lead.get("telefone") or lead.get("whatsapp_link")
+    id_externo, jid = mensageiros.enviar_whatsapp_imagem(telefone, url_imagem, legenda)
+
+    agora = _agora()
+    conexao = db.conectar()
+    try:
+        chave = f"wa:{id_externo}" if id_externo else None
+        texto_historico = f"[imagem] {legenda}" if legenda else "[imagem]"
+        _inserir_mensagem(conexao, canal, lead_ref, "vendedor", texto_historico, agora, "app", chave)
+        if canal == "maps" and jid:
+            conexao.execute("UPDATE leads SET whatsapp_jid = ? WHERE place_id = ?", (jid, lead_ref))
+        conexao.commit()
+    finally:
+        conexao.close()
+
+    logger.info("imagem whatsapp enviada para %s/%s via Evolution", canal, lead_ref)
+
+
 @bp.route("/api/envio/whatsapp/<canal>/<path:lead_ref>", methods=["POST"])
 def enviar_whatsapp(canal, lead_ref):
     lead, erro = _validar_alvo(canal, lead_ref)

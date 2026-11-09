@@ -135,6 +135,22 @@ def enviar_whatsapp(telefone, texto):
     return chave.get("id"), chave.get("remoteJid")
 
 
+def enviar_whatsapp_imagem(telefone, url_imagem, legenda=None):
+    """Envia uma imagem (com legenda opcional) via Evolution API. Retorna
+    (id_da_mensagem, jid), igual a enviar_whatsapp. `url_imagem` precisa ser uma
+    URL pública - a Evolution baixa ela do servidor dela, não do nosso."""
+    _, _, instancia = config_evolution()
+    numero = numero_internacional(telefone)
+    if not numero:
+        raise ErroEnvio("Este lead não tem telefone.")
+    corpo = {"number": numero, "mediatype": "image", "media": url_imagem}
+    if legenda:
+        corpo["caption"] = legenda
+    dados = _evolution("POST", f"/message/sendMedia/{instancia}", corpo)
+    chave = dados.get("key") or {}
+    return chave.get("id"), chave.get("remoteJid")
+
+
 def buscar_mensagens(jid, limite=100, campo="remoteJid"):
     """Mensagens mais recentes de uma conversa (a Evolution devolve da mais nova
     pra mais antiga). `campo="remoteJidAlt"` acha conversas endereçadas por

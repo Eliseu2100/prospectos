@@ -22,6 +22,7 @@ Estado da conversa em `leads.piloto_status`:
   'sem_whatsapp' - o número não tem WhatsApp
 """
 
+import json
 import logging
 import random
 import threading
@@ -37,9 +38,12 @@ from rotas_conversa import _listar_mensagens
 logger = logging.getLogger(__name__)
 
 INTERVALO_LACO_SEGUNDOS = 20
-# o piloto só aborda negócio SEM site (decisão do vendedor em 29/10: site ruim
-# não é chamado); os de site ruim já contatados também não recebem follow-up
-SITUACAO_SITE_ALVO = "sem_site"
+# Ordem de prioridade do piloto: primeiro quem não tem site, depois quem tem site ruim
+# (decisão do Eliseu em 08/11/2026, revendo a decisão de 29/10 que deixava site ruim de
+# fora - agora que o raio-X do site (processar.montar_checklist_site) não afirma mais
+# "falta botão de WhatsApp"/"fotos ruins" sem ter certeza, e "fora do ar" não confunde
+# mais com "site lento", dá pra confiar na citação do problema na abordagem).
+SITUACOES_SITE_ALVO = ("sem_site", "site_ruim")
 # espera mínima após a mensagem do lead antes de responder (resposta instantânea soa robô)
 ATRASO_MINIMO_RESPOSTA_SEGUNDOS = 45
 
@@ -131,17 +135,23 @@ def _sortear_proximo_contato(cfg, agora=None):
 
 def proximos_leads(conexao, cfg, limite=5):
     """Fila do piloto: leads novos da área escolhida, com telefone, que o piloto
-    ainda não tocou, do maior score pro menor."""
+    ainda não tocou. Prioridade em duas camadas: primeiro TODOS os sem site, só
+    depois os de site ruim (SITUACOES_SITE_ALVO, nessa ordem); dentro de cada
+    camada, do maior score pro menor."""
     from rotas_leads import SQL_SCORE
 
+    marcadores_situacao = ", ".join("?" for _ in SITUACOES_SITE_ALVO)
+    camada_situacao = "CASE site_status " + " ".join(
+        f"WHEN '{situacao}' THEN {indice}" for indice, situacao in enumerate(SITUACOES_SITE_ALVO)
+    ) + " END"
     condicoes = [
         "status = 'novo'",
-        "site_status = ?",
+        f"site_status IN ({marcadores_situacao})",
         "telefone IS NOT NULL AND telefone != ''",
         "piloto_status IS NULL",
         f"{SQL_SCORE} >= ?",
     ]
-    parametros = [SITUACAO_SITE_ALVO, _int(cfg, "piloto_score_min")]
+    parametros = [*SITUACOES_SITE_ALVO, _int(cfg, "piloto_score_min")]
     if cfg["piloto_nicho"].strip():
         condicoes.append("LOWER(COALESCE(nicho, '') || ' ' || COALESCE(categoria, '')) LIKE ?")
         parametros.append(f"%{cfg['piloto_nicho'].strip().lower()}%")
@@ -151,7 +161,7 @@ def proximos_leads(conexao, cfg, limite=5):
 
     linhas = conexao.execute(
         f"SELECT *, {SQL_SCORE} AS score FROM leads WHERE {' AND '.join(condicoes)} "
-        f"ORDER BY score DESC, nota DESC LIMIT ?",
+        f"ORDER BY {camada_situacao}, score DESC, nota DESC LIMIT ?",
         (*parametros, limite),
     ).fetchall()
     return [dict(linha) for linha in linhas]
@@ -160,6 +170,40 @@ def proximos_leads(conexao, cfg, limite=5):
 # ---------------------------------------------------------------------------
 # Primeiro contato
 # ---------------------------------------------------------------------------
+
+def _reconferir_site(conexao, lead):
+    """Reavalia o site de quem tem 'site ruim' segundos antes de falar com ele: a análise
+    da busca pode ter pegado uma queda passageira (09/11: CN Suntech foi chamada de 'fora
+    do ar' e o site abria em 1,4 s). Retorna False se o problema sumiu - o lead sai da fila.
+    Se o problema mudou, atualiza o lead e descarta a mensagem em cache."""
+    if lead.get("site_status") != "site_ruim" or not lead.get("site_url"):
+        return True
+    import processar
+    try:
+        situacao, problemas, checklist = processar.avaliar_site_completo(lead["site_url"])
+    except Exception:
+        logger.exception("piloto: não consegui reconferir o site de %s", lead["place_id"])
+        return True
+
+    if situacao == "ok":
+        conexao.execute(
+            "UPDATE leads SET site_status = 'site_ok', site_problemas = NULL, mensagem_gerada = NULL, "
+            "piloto_status = NULL WHERE place_id = ?", (lead["place_id"],))
+        registrar_evento(conexao, "site_ok", lead["place_id"], lead["nome"],
+                         "O site abriu normal na reconferência antes do envio; lead saiu da fila.")
+        conexao.commit()
+        return False
+
+    novos = "; ".join(problemas)
+    if novos != (lead.get("site_problemas") or ""):
+        checklist_json = json.dumps(checklist, ensure_ascii=False) if checklist else None
+        conexao.execute(
+            "UPDATE leads SET site_problemas = ?, site_checklist = ?, mensagem_gerada = NULL "
+            "WHERE place_id = ?", (novos, checklist_json, lead["place_id"]))
+        conexao.commit()
+        lead.update({"site_problemas": novos, "site_checklist": checklist_json, "mensagem_gerada": None})
+    return True
+
 
 def fazer_primeiro_contato(cfg):
     """Escolhe o melhor lead da fila, gera a mensagem e envia. Retorna o nome do
@@ -171,15 +215,18 @@ def fazer_primeiro_contato(cfg):
     try:
         if _enviados_hoje(conexao) >= _limite_diario():
             return None
-        fila = proximos_leads(conexao, cfg, limite=1)
-        if not fila:
+        lead = None
+        for candidato in proximos_leads(conexao, cfg, limite=5):
+            # reserva o lead antes de chamar IA/rede: se algo falhar no meio, ele não
+            # é escolhido de novo na próxima volta
+            conexao.execute("UPDATE leads SET piloto_status = 'automatico', piloto_respostas = 0 "
+                            "WHERE place_id = ?", (candidato["place_id"],))
+            conexao.commit()
+            if _reconferir_site(conexao, candidato):
+                lead = candidato
+                break
+        if lead is None:
             return None
-        lead = fila[0]
-        # reserva o lead antes de chamar IA/rede: se algo falhar no meio, ele não
-        # é escolhido de novo na próxima volta
-        conexao.execute("UPDATE leads SET piloto_status = 'automatico', piloto_respostas = 0 "
-                        "WHERE place_id = ?", (lead["place_id"],))
-        conexao.commit()
 
         mensagem = lead.get("mensagem_gerada")
         if not mensagem:
@@ -226,7 +273,65 @@ def fazer_primeiro_contato(cfg):
         conexao.commit()
     finally:
         conexao.close()
+
+    _enviar_print_site_modelo(lead)
     return lead["nome"]
+
+
+def _config_site_modelo():
+    """Site modelo do setor da vez (print + link), configurado em
+    `site_modelo_atual` (JSON: nicho, link, imagem_url, legenda_print,
+    texto_oferta_link). None se não tiver sido configurado ainda."""
+    bruto = db.obter_config("site_modelo_atual")
+    if not bruto:
+        return None
+    try:
+        return json.loads(bruto)
+    except ValueError:
+        return None
+
+
+def _enviar_print_site_modelo(lead):
+    """Manda o print do site modelo logo após o primeiro contato, pra gerar
+    curiosidade - automático, sem condição (decisão do Eliseu em 08/11/2026):
+    todo lead novo recebe, não só quem respondeu. Legenda fixa (sem IA). Se não
+    tiver site modelo configurado ou o envio falhar, só registra e segue - o
+    primeiro contato (texto) já saiu com sucesso antes desta chamada."""
+    site_modelo = _config_site_modelo()
+    imagem_url = (site_modelo or {}).get("imagem_url")
+    if not imagem_url:
+        return
+    from rotas_envio import enviar_imagem_e_registrar
+    try:
+        enviar_imagem_e_registrar(
+            "maps", lead["place_id"], lead, imagem_url, site_modelo.get("legenda_print"),
+        )
+    except mensageiros.ErroEnvio as erro:
+        conexao = db.conectar()
+        try:
+            registrar_evento(conexao, "erro", lead["place_id"], lead["nome"],
+                             f"Não consegui mandar o print do site modelo: {erro}")
+            conexao.commit()
+        finally:
+            conexao.close()
+
+
+def _acrescentar_link_site_modelo(mensagem, numero_followup):
+    """No 1º follow-up (D2), oferece o link do site modelo - texto fixo, não
+    escrito pela IA, pra garantir que o link realmente sai (decisão do Eliseu em
+    08/11/2026: automático, não depende de o lead ter reagido ao print)."""
+    if numero_followup != 1:
+        return mensagem
+    site_modelo = _config_site_modelo()
+    link = (site_modelo or {}).get("link")
+    if not link:
+        return mensagem
+    modelo_texto = site_modelo.get("texto_oferta_link")
+    complemento = (
+        modelo_texto.format(link=link) if modelo_texto
+        else f"Esse aqui é o link pra navegar de verdade: {link}"
+    )
+    return f"{mensagem}\n\n{complemento}"
 
 
 # ---------------------------------------------------------------------------
@@ -242,20 +347,22 @@ def leads_para_followup(conexao, agora=None):
     follow-up da cadência já venceu, do mais atrasado pro mais recente. Nunca
     dois envios no mesmo dia pro mesmo lead."""
     agora = agora or datetime.now()
+    marcadores_situacao = ", ".join("?" for _ in SITUACOES_SITE_ALVO)
     linhas = conexao.execute(
-        """
+        f"""
         SELECT l.*,
                (SELECT MIN(enviada_em) FROM mensagens_conversa
                  WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor') AS primeiro_envio_em,
                (SELECT MAX(enviada_em) FROM mensagens_conversa
                  WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor') AS ultimo_envio_em
         FROM leads l
-        WHERE l.piloto_status = 'automatico' AND l.status = 'contatado' AND l.site_status = ?
+        WHERE l.piloto_status = 'automatico' AND l.status = 'contatado'
+          AND l.site_status IN ({marcadores_situacao})
           AND COALESCE(l.follow_ups_enviados, 0) < ?
           AND NOT EXISTS (SELECT 1 FROM mensagens_conversa
                            WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'lead' AND automatica = 0)
         """,
-        (SITUACAO_SITE_ALVO, len(abordagem.CADENCIA_FOLLOWUP_DIAS)),
+        (*SITUACOES_SITE_ALVO, len(abordagem.CADENCIA_FOLLOWUP_DIAS)),
     ).fetchall()
 
     vencidos = []
@@ -300,10 +407,11 @@ def fazer_followup(cfg, agora=None):
     finally:
         conexao.close()
 
+    numero = (lead["follow_ups_enviados"] or 0) + 1
+    mensagem = _acrescentar_link_site_modelo(mensagem, numero)
     texto = ia.ajustar_saudacao(mensagem)
     enviar_e_registrar("maps", lead["place_id"], lead, texto)
 
-    numero = (lead["follow_ups_enviados"] or 0) + 1
     ultimo = numero >= len(abordagem.CADENCIA_FOLLOWUP_DIAS)
     agora_iso = datetime.now().isoformat(timespec="seconds")
     conexao = db.conectar()
@@ -328,19 +436,21 @@ def leads_com_robo(conexao, agora=None):
     resposta automática) e que ainda não receberam o recado pro dono."""
     limite = ((agora or datetime.now()) - timedelta(seconds=ATRASO_MINIMO_RESPOSTA_SEGUNDOS)
               ).isoformat(timespec="seconds")
+    marcadores_situacao = ", ".join("?" for _ in SITUACOES_SITE_ALVO)
     linhas = conexao.execute(
-        """
+        f"""
         SELECT l.* FROM leads l
         JOIN mensagens_conversa m ON m.id = (
             SELECT id FROM mensagens_conversa
             WHERE canal = 'maps' AND lead_ref = l.place_id
             ORDER BY enviada_em DESC, id DESC LIMIT 1)
-        WHERE l.piloto_status = 'automatico' AND l.status = 'contatado' AND l.site_status = ?
+        WHERE l.piloto_status = 'automatico' AND l.status = 'contatado'
+          AND l.site_status IN ({marcadores_situacao})
           AND m.autor = 'lead' AND m.automatica = 1 AND m.enviada_em <= ?
           AND NOT EXISTS (SELECT 1 FROM piloto_eventos e
                            WHERE e.place_id = l.place_id AND e.tipo = 'recado_robo')
         """,
-        (SITUACAO_SITE_ALVO, limite),
+        (*SITUACOES_SITE_ALVO, limite),
     ).fetchall()
     return [dict(linha) for linha in linhas]
 

@@ -146,6 +146,11 @@ REGEX_CEP = re.compile(r"\b\d{5}-\d{3}\b")
 REGEX_ANO_COPYRIGHT = re.compile(r"(?:©|&copy;|copyright)\D{0,20}(20\d{2})", re.IGNORECASE)
 
 
+# Itens de "falta" que a mensagem de abordagem pode citar (checklists antigos já gravados
+# no banco ainda trazem telefone/e-mail/endereço como "falta"; isto filtra na leitura).
+FALTAS_CONFIAVEIS = ("título descritivo na aba", "descrição para aparecer no Google")
+
+
 def montar_checklist_site(html, url_final):
     """Raio-X do site com dados reais do HTML: o que o site TEM e o que FALTA
     para transformar visita em contato. Alimenta o modal do lead, o diagnóstico
@@ -160,21 +165,29 @@ def montar_checklist_site(html, url_final):
         html or "", re.IGNORECASE,
     )
 
+    # Só "título" e "descrição" entram como possível "falta": ficam sempre no HTML puro.
+    # Todo o resto (telefone, e-mail, redes, endereço, WhatsApp, fotos) só conta quando é
+    # ENCONTRADO: site com rodapé/botão montado por JavaScript parece não ter e dizer que
+    # "falta" algo que existe derruba a credibilidade no primeiro contato (decisão do Eliseu
+    # em 08/11/2026, ampliada em 09/11 depois que a mensagem citou telefone/endereço que existiam).
     itens = [
+        ("título descritivo na aba", len(titulo_texto) > 8 and titulo_texto.lower() not in ("home", "index", "início", "untitled")),
+        ("descrição para aparecer no Google", bool(descricao)),
+        ("ícone na aba do navegador (favicon)", bool(re.search(r"rel=[\"'](?:shortcut )?icon", html_min))),
+    ]
+
+    itens_so_positivo = [
         ("botão de WhatsApp", ("wa.me" in html_min or "api.whatsapp.com" in html_min or "whatsapp" in html_min)),
+        ("fotos do negócio", imagens >= 3),
         ("telefone clicável", 'href="tel:' in html_min or "href='tel:" in html_min),
         ("e-mail de contato", "mailto:" in html_min),
         ("link para redes sociais", "instagram.com" in html_min or "facebook.com" in html_min),
         ("endereço ou mapa", ("google.com/maps" in html_min or "maps.google" in html_min
                               or "<address" in html_min or bool(REGEX_CEP.search(html or "")))),
-        ("fotos do negócio", imagens >= 3),
-        ("título descritivo na aba", len(titulo_texto) > 8 and titulo_texto.lower() not in ("home", "index", "início", "untitled")),
-        ("descrição para aparecer no Google", bool(descricao)),
-        ("ícone na aba do navegador (favicon)", bool(re.search(r'rel=["\'](?:shortcut )?icon', html_min))),
     ]
 
     checklist = {
-        "tem": [nome for nome, presente in itens if presente],
+        "tem": [nome for nome, presente in itens if presente] + [nome for nome, presente in itens_so_positivo if presente],
         "falta": [nome for nome, presente in itens if not presente],
     }
 
@@ -196,7 +209,7 @@ def avaliar_site_completo(url):
     Checagens de segurança espelham o navegador: SSL validado, http:// = "não seguro",
     conteúdo misto em página https."""
     import requests
-    from requests.exceptions import RequestException, SSLError
+    from requests.exceptions import RequestException, SSLError, Timeout
 
     def requisitar(url_alvo, verify=True):
         return requests.get(
@@ -225,6 +238,8 @@ def avaliar_site_completo(url):
     url_completa = url if tinha_esquema else f"https://{url}"
 
     resposta = None
+    foi_timeout = False  # timeout = o site RESPONDE, só que devagar demais - é diferente
+    # de fora do ar, e é um ponto mais forte e mais exato pra citar na abordagem
     try:
         resposta = requisitar_com_retentativa(url_completa)
     except SSLError:
@@ -237,6 +252,7 @@ def avaliar_site_completo(url):
             resposta = None
     except RequestException as erro:
         dominio_morto = _e_falha_de_dns(erro)
+        foi_timeout = isinstance(erro, Timeout)
         resposta = None
 
     if resposta is None and not tinha_esquema and not dominio_morto:
@@ -245,14 +261,22 @@ def avaliar_site_completo(url):
         # correto é "sem HTTPS" (detectado abaixo pela URL final)
         try:
             resposta = requisitar(f"http://{url}")
-        except RequestException:
+        except RequestException as erro:
+            foi_timeout = foi_timeout or isinstance(erro, Timeout)
             resposta = None
 
     if resposta is None:
-        motivo = (
-            "domínio não encontrado (pode ter expirado)" if dominio_morto
-            else "site fora do ar (não abre)"
-        )
+        if dominio_morto:
+            motivo = "domínio não encontrado (pode ter expirado)"
+        elif foi_timeout:
+            # não é "fora do ar": o servidor nunca recusou a conexão, só não respondeu
+            # a tempo em duas tentativas - é lentidão extrema, pior ainda no celular
+            motivo = (
+                f"site muito lento pra carregar (não respondeu em {SITE_TIMEOUT_SEGUNDOS}s, "
+                "nem numa segunda tentativa - no celular tende a ser pior ainda)"
+            )
+        else:
+            motivo = "site fora do ar (não abre)"
         return "ruim", problemas + [motivo], None
 
     if resposta.status_code >= 400:
@@ -852,6 +876,25 @@ def telefone_para_whatsapp(telefone_bruto):
     return f"https://wa.me/55{ddd}{numero}"
 
 
+PALAVRAS_FORA_DE_ALVO = (
+    "universidade", "faculdade", "unicamp", "usp ", "escola", "colegio", "colégio", "senai", "senac",
+    "curso", "cursos", "treinamento", "prefeitura", "sindicato",
+)
+
+
+def fora_do_alvo(linha, busca_solar=False):
+    """Descarta o que nunca compra site: instituição de ensino, curso, órgão público e,
+    numa busca de energia solar, empresa de refrigeração que não menciona solar."""
+    nome = (linha.get("title") or "").lower()
+    categoria = (linha.get("category") or "").lower()
+    texto = f"{nome} {categoria} "
+    if any(palavra in texto for palavra in PALAVRAS_FORA_DE_ALVO):
+        return True
+    if busca_solar and "solar" not in nome and any(p in texto for p in ("refrigera", "ar condicionado", "ar-condicionado")):
+        return True
+    return False
+
+
 def linha_qualifica(linha):
     """Filtro rápido (sem rede): só a nota mínima. Ter site NÃO desqualifica mais
     aqui - a qualidade do site é avaliada depois (site ruim também é lead)."""
@@ -933,12 +976,20 @@ def processar(caminho_csv_bruto, caminho_queries=CAMINHO_QUERIES_PADRAO, callbac
     # acha que a busca está bugada quando na verdade é o filtro fazendo o papel dele
     descartados_nota_baixa = 0
     descartados_sem_telefone = 0
+    descartados_fora_do_alvo = 0
+    try:
+        busca_solar = "solar" in Path(caminho_queries).read_text(encoding="utf-8").lower()
+    except (OSError, TypeError):
+        busca_solar = False
 
     # Fase 1: filtra candidatas (rápido, sem rede) e prepara link do WhatsApp de cada uma
     candidatas = []
     with open(caminho_csv_bruto, encoding="utf-8") as arquivo:
         for linha in csv.DictReader(arquivo):
             total_no_csv += 1
+            if fora_do_alvo(linha, busca_solar):
+                descartados_fora_do_alvo += 1
+                continue
             if not linha_qualifica(linha):
                 descartados_nota_baixa += 1  # nota < mínima ou sem avaliação
                 continue

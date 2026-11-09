@@ -124,6 +124,23 @@ class TestAvaliarSite:
         assert situacao == "ruim"
         assert any("fora do ar" in p for p in problemas)
 
+    def test_site_muito_lento_nao_e_fora_do_ar(self, monkeypatch):
+        """Timeout (o servidor nunca recusa a conexão, só não responde a tempo em
+        nenhuma das tentativas) é lentidão, não fora do ar - dizer "não abre" pra um
+        site que abre (só demora) é uma informação errada pro dono do negócio."""
+        import requests
+
+        def demora(*a, **kw):
+            raise requests.exceptions.Timeout("tempo esgotado")
+
+        monkeypatch.setattr(requests, "get", demora)
+        monkeypatch.setattr(processar.time, "sleep", lambda s: None)
+
+        situacao, problemas = processar.avaliar_site("https://lento.com.br")
+        assert situacao == "ruim"
+        assert not any("fora do ar" in p for p in problemas)
+        assert any("lento" in p for p in problemas)
+
     def test_site_com_erro_http_e_ruim(self, monkeypatch):
         import requests
         monkeypatch.setattr(
@@ -335,11 +352,27 @@ class TestChecklistDoSite:
     def test_site_pelado_falta_quase_tudo(self):
         html = "<html><head><title>Home</title></head><body><p>oi</p></body></html>"
         checklist, _ano = processar.montar_checklist_site(html, "https://x.com.br/")
-        assert "botão de WhatsApp" in checklist["falta"]
-        assert "telefone clicável" in checklist["falta"]
-        assert "fotos do negócio" in checklist["falta"]
         assert "título descritivo na aba" in checklist["falta"]  # "Home" não conta
         assert "descrição para aparecer no Google" in checklist["falta"]
+        # botão de WhatsApp e fotos do negócio: HTML puro (sem JS) não garante detectar -
+        # nunca entram em "falta", só em "tem" quando realmente encontrados (ver
+        # test_whatsapp_e_fotos_nunca_aparecem_como_falta).
+        # só título e descrição podem virar "falta"; o resto só conta quando encontrado
+        for item in ("botão de WhatsApp", "fotos do negócio", "telefone clicável", "e-mail de contato",
+                     "link para redes sociais", "endereço ou mapa"):
+            assert item not in checklist["falta"]
+
+    def test_whatsapp_e_fotos_nunca_aparecem_como_falta(self):
+        """Mesmo o site mais pelado não pode gerar a afirmação "falta botão de WhatsApp" nem
+        "falta fotos do negócio": o HTML puro não roda JavaScript, então um botão ou uma
+        galeria montada por script não aparece aqui mesmo existindo de verdade no navegador -
+        dizer que falta algo que na verdade tem derruba a credibilidade no primeiro contato."""
+        html = "<html><head><title>Home</title></head><body></body></html>"
+        checklist, _ano = processar.montar_checklist_site(html, "https://x.com.br/")
+        assert "botão de WhatsApp" not in checklist["falta"]
+        assert "fotos do negócio" not in checklist["falta"]
+        assert "botão de WhatsApp" not in checklist["tem"]
+        assert "fotos do negócio" not in checklist["tem"]
 
     def test_copyright_antigo_vira_problema(self, monkeypatch):
         import requests
@@ -673,3 +706,18 @@ class TestIndices:
         cx = sqlite3.connect(":memory:")
         processar.preparar_banco(cx)
         processar.preparar_banco(cx)  # nao pode quebrar rodando de novo
+
+
+class TestForaDoAlvo:
+    def test_descarta_curso_universidade_e_escola(self):
+        assert processar.fora_do_alvo({"title": "Cursos de Energia Solar - FEEC/UNICAMP", "category": ""})
+        assert processar.fora_do_alvo({"title": "Escola Solar", "category": "Escola"})
+        assert not processar.fora_do_alvo({"title": "Solemax Energia Solar", "category": "Serviços"})
+
+    def test_refrigeracao_so_sai_na_busca_de_energia_solar(self):
+        linha = {"title": "Hunos Refrigeração e Ar Condicionado", "category": ""}
+        assert processar.fora_do_alvo(linha, busca_solar=True)
+        assert not processar.fora_do_alvo(linha, busca_solar=False)
+        # menciona solar no nome: continua sendo alvo
+        assert not processar.fora_do_alvo(
+            {"title": "LF refrigeração e energia solar", "category": ""}, busca_solar=True)

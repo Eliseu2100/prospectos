@@ -325,6 +325,15 @@ MAX_CARACTERES_PRIMEIRA_MENSAGEM = 350
 _REGEX_SAUDACAO = re.compile(r"\b(Bom dia|Boa tarde|Boa noite)\b", re.IGNORECASE)
 
 
+def corrigir_apresentacao(texto):
+    """"Bom dia, eu, Eliseu, notei..." -> "Bom dia, sou o Eliseu e notei...". Os modelos
+    mais fracos (Groq) repetem essa construção; a correção é determinística."""
+    primeiro_nome = ((db.obter_config("vendedor_nome") or "").strip().split() or [""])[0]
+    if not primeiro_nome:
+        return texto
+    return re.sub(rf"\b[Ee]u,\s*{re.escape(primeiro_nome)},\s*", f"sou o {primeiro_nome} e ", texto or "")
+
+
 def ajustar_saudacao(texto):
     """A copy guarda a saudação da hora em que foi GERADA; troca pela da hora do
     ENVIO (mesma regra do ajustarSaudacao do frontend)."""
@@ -378,7 +387,10 @@ def _bloco_perfil_vendedor():
 
     linhas = ["", "Quem envia as mensagens (escreva na voz dessa pessoa):"]
     if nome:
-        linhas.append(f"- Nome: {nome} (apresente-se pelo nome quando soar natural)")
+        linhas.append(
+            f"- Nome: {nome}. Se for se identificar, use EXATAMENTE este primeiro nome e nenhum outro "
+            "- nunca invente ou troque por outro nome, mesmo que pareça mais natural."
+        )
     if apresentacao:
         linhas.append(f"- O que faz: {apresentacao}")
     if diferencial:
@@ -459,8 +471,13 @@ def _contexto_site(site_status, site_problemas):
             f"A empresa TEM um site, mas ele está com problemas sérios detectados automaticamente: "
             f"{site_problemas or 'problemas técnicos'}. A oferta é um site NOVO (reformulação). "
             "Cite o problema de forma LEIGA e respeitosa (ex.: em vez de 'sem viewport', diga que "
-            "'o site não abre direito no celular'; em vez de 'HTTP 500', 'o site está fora do ar'), "
-            "e use a combinação reputação forte + site problemático como a oportunidade perdida."
+            "'o site não abre direito no celular'), e use a combinação reputação forte + site problemático "
+            "como a oportunidade perdida. Só diga que o site está 'fora do ar' se o problema informado "
+            "for literalmente 'site fora do ar'. Erro HTTP (404, 500 etc.) ou domínio com defeito vira "
+            "'o endereço do site que está no perfil do Google dá erro ao abrir', nunca 'fora do ar'. "
+            "Site lento é 'demora muito para carregar'. Cite SOMENTE problemas desta lista e do raio-X "
+            "fornecido: nunca diga que falta telefone, e-mail, endereço, botão de WhatsApp ou foto, "
+            "nem opine sobre a qualidade das fotos."
         )
     return (
         "A empresa NÃO possui site. Use a combinação reputação forte + ausência de site como a "
@@ -502,7 +519,11 @@ Dados da empresa:
 
 Orientações desta mensagem:
 - Encaixe a saudação indicada de forma natural.
-- Se for se identificar, só o primeiro nome, em meia frase. Sem dizer o que você vende.
+- Se for se identificar, só o primeiro nome indicado em "Quem envia as mensagens" acima, em meia
+  frase, exatamente como está lá - nunca troque por outro nome. Escreva "aqui é o Eliseu" ou
+  "sou o Eliseu" (nunca "eu, Eliseu," entre vírgulas). Sem dizer o que você vende.
+- Nunca cumprimente nem elogie o nome da empresa como se fosse uma pessoa (errado: "Cursos de
+  Energia Solar, parabéns"). Use só a saudação do horário e comece a frase direto.
 - A pergunta da estrutura É o fechamento: não acrescente outra pergunta nem convite.
 """
 
@@ -562,6 +583,7 @@ def gerar_mensagem_com_fallback(nome, categoria, endereco, nota, tipo="contato",
         mensagem, provedor, avisos = executar_com_fallback(
             montar_system_copywriter("WhatsApp"), user, descricao_log="gerar mensagem"
         )
+        mensagem = corrigir_apresentacao(mensagem)
         if len(mensagem) > MAX_CARACTERES_PRIMEIRA_MENSAGEM:
             # modelo ignorou o limite: pede pra encurtar mantendo o fechamento
             try:

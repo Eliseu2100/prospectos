@@ -646,3 +646,16 @@ def test_texto_longo_instantaneo_e_robo():
     texto = "Olá, aqui é da recepção, recebemos seu contato e logo alguém fala com você aqui."
     assert sincronizacao_whatsapp.e_resposta_automatica(texto, segundos_desde_nossa=4)
     assert not sincronizacao_whatsapp.e_resposta_automatica(texto, segundos_desde_nossa=300)
+
+
+def test_atendente_virtual_que_encaminha_conta_como_automatico():
+    """Art, LF e Sol Livre (09/11): resposta em segundos oferecendo 'encaminhar para a equipe'."""
+    for texto in (
+        "Quer que eu faça essa conexão com nossa equipe aqui mesmo no chat?",
+        "Já encaminhei sua mensagem para nossa equipe, e alguém responderá por aqui neste chat.",
+        "Perfeito! Quer que eu encaminhe tudo pro Rodrigo analisar?",
+    ):
+        assert sincronizacao_whatsapp.e_resposta_automatica(texto, segundos_desde_nossa=40)
+    # a mesma frase, depois de muito tempo, é pessoa
+    assert not sincronizacao_whatsapp.e_resposta_automatica(
+        "Já encaminhei para o responsável, ele te retorna.", segundos_desde_nossa=3600)
