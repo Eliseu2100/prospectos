@@ -450,8 +450,30 @@ def nome_curto_empresa(nome):
     return nome
 
 
+def cidade_do_endereco(endereco, cidade_padrao=None):
+    """Cidade REAL do negócio, lida do endereço do Google ('..., Mogi Guaçu - SP, 13845-420').
+    O campo `cidade` do lead é só o rótulo da área de busca e erra (Mogi Guaçu virava
+    'Águas de Lindóia'); o endereço é a fonte confiável. Sem endereço legível, usa o padrão."""
+    partes = [p.strip() for p in (endereco or "").split(",")]
+    for parte in reversed(partes):
+        achado = re.match(r"^(.+?)\s+-\s+[A-Z]{2}$", parte)
+        if achado:
+            return achado.group(1).strip()
+    return cidade_padrao
+
+
+AVISO_REDE_FRANQUIA = (
+    "ATENÇÃO: esta marca aparece com várias unidades em cidades diferentes (rede ou franquia). "
+    "Quem responde costuma ser o comercial da franqueadora e corrige quem trata a unidade como "
+    "empresa isolada. NÃO diga que 'não têm site' nem use nota ou avaliações como lacuna. Fale da "
+    "UNIDADE da cidade e de uma página regional que capte a busca local e leve ao WhatsApp dela, "
+    "respeitando as regras da marca."
+)
+
+
 def _bloco_dados_empresa(nome, categoria, endereco, nota, num_avaliacoes=None,
                          cidade=None, instagram_url=None):
+    cidade = cidade_do_endereco(endereco, cidade)
     linhas = [
         _linha_dado("Nome (escreva exatamente assim)", nome_curto_empresa(nome)),
         _linha_dado("Categoria", categoria or "não informado"),
@@ -480,7 +502,9 @@ def _contexto_site(site_status, site_problemas):
             "nem opine sobre a qualidade das fotos."
         )
     return (
-        "A empresa NÃO possui site. Use a combinação reputação forte + ausência de site como a "
+        "O perfil da empresa no Google NÃO mostra site (isso vem do perfil; ela pode ter um que o Google não lista). "
+        "Escreva 'não encontrei um site no perfil de vocês no Google', nunca 'vocês não têm site'. "
+        "Use a combinação reputação forte + ausência de site como a "
         "oportunidade perdida: quem pesquisa no Google fora do Maps não a encontra. Se ela tiver "
         "Instagram, reconheça ('o Instagram de vocês é ativo') e posicione o site como o complemento "
         "que captura quem pesquisa - nunca como substituto da rede social."
@@ -493,7 +517,7 @@ def _contexto_site(site_status, site_problemas):
 
 def montar_prompt_contato(nome, categoria, endereco, nota, site_status=None, site_problemas=None,
                           num_avaliacoes=None, cidade=None, instagram_url=None, conteudo_site=None,
-                          nicho=None):
+                          nicho=None, aviso_extra=None):
     bloco_conteudo = (
         f"""
 Conteúdo REAL do site atual da empresa (capturado agora):
@@ -516,12 +540,13 @@ Estrutura desta mensagem (siga esta, com as suas palavras):
 {bloco_conteudo}{abordagem.bloco_dor_do_nicho(categoria, nicho)}
 Dados da empresa:
 {_bloco_dados_empresa(nome, categoria, endereco, nota, num_avaliacoes, cidade, instagram_url)}
-
+{aviso_extra or ''}
 Orientações desta mensagem:
 - Encaixe a saudação indicada de forma natural.
 - Se for se identificar, só o primeiro nome indicado em "Quem envia as mensagens" acima, em meia
   frase, exatamente como está lá - nunca troque por outro nome. Escreva "aqui é o Eliseu" ou
-  "sou o Eliseu" (nunca "eu, Eliseu," entre vírgulas). Sem dizer o que você vende.
+  "sou o Eliseu" (nunca "eu, Eliseu," entre vírgulas) e, na mesma meia frase, diga que cria sites
+  para negócios locais (ex.: "aqui é o Eliseu, crio sites para negócios locais"). Sem listar serviços.
 - Nunca cumprimente nem elogie o nome da empresa como se fosse uma pessoa (errado: "Cursos de
   Energia Solar, parabéns"). Use só a saudação do horário e comece a frase direto.
 - A pergunta da estrutura É o fechamento: não acrescente outra pergunta nem convite.
@@ -563,7 +588,7 @@ Orientações desta mensagem:
 def gerar_mensagem_com_fallback(nome, categoria, endereco, nota, tipo="contato", follow_ups_enviados=0,
                                 site_status=None, site_problemas=None, num_avaliacoes=None,
                                 cidade=None, instagram_url=None, mensagem_anterior=None,
-                                conteudo_site=None, nicho=None):
+                                conteudo_site=None, nicho=None, aviso_extra=None):
     """Gera a mensagem de abordagem/follow-up de um lead do Maps.
     Retorna (mensagem, provedor_usado, avisos_para_o_usuario)."""
     if tipo == "followup":
@@ -576,7 +601,7 @@ def gerar_mensagem_com_fallback(nome, categoria, endereco, nota, tipo="contato",
         user = montar_prompt_contato(
             nome, categoria, endereco, nota, site_status, site_problemas,
             num_avaliacoes=num_avaliacoes, cidade=cidade, instagram_url=instagram_url,
-            conteudo_site=conteudo_site, nicho=nicho,
+            conteudo_site=conteudo_site, nicho=nicho, aviso_extra=aviso_extra,
         )
 
     try:

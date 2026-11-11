@@ -33,7 +33,7 @@ TAMANHO_MINIMO_PALAVRA_CHAVE = 5
 # ---------------------------------------------------------------------------
 
 REGRAS_PRIMEIRO_CONTATO = """Método do primeiro contato (vale acima de qualquer outra orientação de estilo):
-- A primeira mensagem NÃO vende: ela só abre a conversa. Nada de apresentar serviços, listar o que você faz, falar de prévia, preço ou marcar horário.
+- A primeira mensagem NÃO vende: ela só abre a conversa. Nada de listar serviços, falar de prévia, preço ou marcar horário. Só uma coisa de apresentação é obrigatória: dizer em meia frase quem você é e o que faz (ex.: "aqui é o Eliseu, crio sites para negócios locais"). Quem recebe mensagem de desconhecido precisa saber com quem fala antes de responder.
 - Cabe numa tela de celular sem rolar: 2 ou 3 frases curtas, idealmente menos de 280 caracteres.
 - Termina com UMA pergunta só, que o dono consegue responder de cabeça. Mensagem que pede duas coisas não recebe resposta.
 - Fale do negócio DELE (clientes, agenda, pedidos), nunca da sua ferramenta ou de como você trabalha.

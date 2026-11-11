@@ -88,6 +88,8 @@ FRASES_AUTOMATICAS_FRACAS = (
     # atendente virtual que "encaminha para a equipe" (confirmado em 09/11: Art, LF, Sol Livre)
     "encaminh", "quer que eu", "conectar com", "nossa equipe", "responder por aqui",
     "respondera por aqui", "neste chat",
+    # saudação do WhatsApp Business (confirmado em 10/11: Connect Salvador)
+    "seja bem vind", "por gentileza", "nos informar", "orcamento preliminar",
 )
 SEGUNDOS_MAX_RESPOSTA_ROBO = 90
 # texto longo em poucos segundos: ninguém lê a nossa mensagem e digita isso tão rápido

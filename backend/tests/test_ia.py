@@ -321,7 +321,7 @@ class TestAbordagem:
 class TestPromptContato:
     def test_sem_site_usa_argumento_de_ausencia(self):
         prompt = ia.montar_prompt_contato("Empresa X", "clínica", "Rua A", 4.8)
-        assert "NÃO possui site" in prompt
+        assert "NÃO mostra site" in prompt
 
     def test_site_ruim_cita_problemas_e_oferece_reformulacao(self):
         prompt = ia.montar_prompt_contato(
@@ -513,3 +513,19 @@ class TestNomeCurtoEMensagemCurta:
                             lambda system, user, **kw: chamadas.append(1) or ("Oi, tudo bem?", "groq", []))
         ia.gerar_mensagem_com_fallback("Loja", "Salão", "Rua", 5.0)
         assert len(chamadas) == 1
+
+
+def test_cidade_do_endereco_ignora_rotulo_da_busca():
+    import ia
+    assert ia.cidade_do_endereco("R. Inácio Franco Alves, 155 - Parque Cidade Nova, Mogi Guaçu - SP, 13845-420", "Águas de Lindóia") == "Mogi Guaçu"
+    assert ia.cidade_do_endereco(None, "Itu") == "Itu"
+
+
+def test_primeiro_contato_pede_apresentacao_e_nao_afirma_sem_site():
+    import abordagem
+    prompt = ia.montar_prompt_contato("Mogiana Solar", "Serviços", "R. X, 1 - Centro, Mogi Guaçu - SP", 5.0,
+                                      "sem_site", None, num_avaliacoes=20, aviso_extra=ia.AVISO_REDE_FRANQUIA)
+    assert "crio sites para negócios locais" in prompt
+    assert "nunca 'vocês não têm site'" in prompt
+    assert "rede ou franquia" in prompt
+    assert "quem você é e o que faz" in abordagem.REGRAS_PRIMEIRO_CONTATO

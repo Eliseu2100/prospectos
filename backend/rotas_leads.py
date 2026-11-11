@@ -4,6 +4,7 @@ observações, follow-up, geração de mensagem, exportação e disparo da busca
 import csv
 import io
 import json
+import re
 import logging
 from datetime import date, datetime, timedelta
 
@@ -512,6 +513,28 @@ def atualizar_followup(place_id):
     return jsonify({"ok": True})
 
 
+def _marca_do_nome(nome):
+    """Primeira palavra significativa do nome, sem acento/pontuação ('SegEnergy-Energia Solar' -> 'segenergy')."""
+    import unicodedata
+    texto = unicodedata.normalize("NFKD", nome or "").encode("ascii", "ignore").decode().lower()
+    palavras = re.findall(r"[a-z0-9]+", texto)
+    return palavras[0] if palavras and len(palavras[0]) >= 4 else None
+
+
+def marca_em_varias_cidades(conexao, lead):
+    """True se a mesma marca já apareceu em 2+ cidades além desta (rede/franquia: SegEnergy
+    apareceu em Campinas, Salvador, Itapira e Mogi Guaçu e o comercial corrigiu a abordagem)."""
+    marca = _marca_do_nome(lead["nome"])
+    if not marca:
+        return False
+    cidades = set()
+    for linha in conexao.execute("SELECT nome, endereco FROM leads WHERE place_id != ? AND LOWER(nome) LIKE ?",
+                                 (lead["place_id"], f"{marca}%")):
+        if _marca_do_nome(linha[0]) == marca:
+            cidades.add(ia.cidade_do_endereco(linha[1]) or linha[1])
+    return len(cidades) >= 2
+
+
 def gerar_copy_para_lead(conexao, lead, tipo="contato", mensagens_anteriores=None):
     """Gera a copy de contato/follow-up de um lead do Maps (sqlite3.Row ou dict) e,
     se for de contato, salva em mensagem_gerada. Retorna (mensagem, provedor, avisos).
@@ -536,6 +559,7 @@ def gerar_copy_para_lead(conexao, lead, tipo="contato", mensagens_anteriores=Non
             conteudo_site = f"{conteudo_site}\n{resumo_raio_x}" if conteudo_site else resumo_raio_x
 
     mensagem, provedor_usado, avisos = ia.gerar_mensagem_com_fallback(
+        aviso_extra=ia.AVISO_REDE_FRANQUIA if marca_em_varias_cidades(conexao, lead) else None,
         nome=lead["nome"],
         categoria=lead["categoria"],
         endereco=lead["endereco"],

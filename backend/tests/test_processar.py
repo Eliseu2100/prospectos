@@ -721,3 +721,10 @@ class TestForaDoAlvo:
         # menciona solar no nome: continua sendo alvo
         assert not processar.fora_do_alvo(
             {"title": "LF refrigeração e energia solar", "category": ""}, busca_solar=True)
+
+
+def test_fora_do_alvo_busca_solar_descarta_outro_ramo():
+    assert processar.fora_do_alvo({"title": "Novo conceito soluções", "category": "Loja de materiais de construção"}, busca_solar=True)
+    assert not processar.fora_do_alvo({"title": "Mogiana energia solar", "category": "Serviços"}, busca_solar=True)
+    assert not processar.fora_do_alvo({"title": "A.S.S Serviços de Eletricidade", "category": "Serviços"}, busca_solar=True)
+    assert not processar.fora_do_alvo({"title": "Novo conceito soluções", "category": "Loja de materiais de construção"}, busca_solar=False)

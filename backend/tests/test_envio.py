@@ -659,3 +659,18 @@ def test_atendente_virtual_que_encaminha_conta_como_automatico():
     # a mesma frase, depois de muito tempo, é pessoa
     assert not sincronizacao_whatsapp.e_resposta_automatica(
         "Já encaminhei para o responsável, ele te retorna.", segundos_desde_nossa=3600)
+
+
+def test_marca_em_varias_cidades_detecta_franquia():
+    import rotas_leads
+    import sqlite3
+    con = sqlite3.connect(":memory:")
+    con.execute("CREATE TABLE leads (place_id TEXT, nome TEXT, endereco TEXT)")
+    con.executemany("INSERT INTO leads VALUES (?,?,?)", [
+        ("a", "SegEnergy Energia solar", "R. A, 1 - Centro, Salvador - BA, 4000"),
+        ("b", "SegEnergy-Energia Solar-Campinas SP", "R. B, 2 - Centro, Campinas - SP, 1300"),
+        ("c", "SegEnergy Itapira", "R. C, 3 - Centro, Itapira - SP, 1390"),
+        ("d", "Solar Reis", "R. D, 4 - Centro, Campinas - SP, 1300"),
+    ])
+    assert rotas_leads.marca_em_varias_cidades(con, {"place_id": "c", "nome": "SegEnergy Itapira"})
+    assert not rotas_leads.marca_em_varias_cidades(con, {"place_id": "d", "nome": "Solar Reis"})

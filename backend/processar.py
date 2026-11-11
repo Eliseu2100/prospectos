@@ -892,6 +892,8 @@ def fora_do_alvo(linha, busca_solar=False):
         return True
     if busca_solar and "solar" not in nome and any(p in texto for p in ("refrigera", "ar condicionado", "ar-condicionado")):
         return True
+    if busca_solar and "solar" not in texto and not any(p in texto for p in ("fotovolt", "energia", "elétric", "eletric")):
+        return True  # veio na busca de energia solar mas é outro ramo (ex.: material de construção)
     return False
 
 
@@ -1148,6 +1150,8 @@ def processar(caminho_csv_bruto, caminho_queries=CAMINHO_QUERIES_PADRAO, callbac
     print(f"Leads novos encontrados nesta rodada: {len(novos)} ({novos_sem_site} sem site, {novos_site_ruim} com site ruim)")
     if descartados_por_site_ok:
         print(f"Descartados por já terem um site decente: {descartados_por_site_ok}")
+    if descartados_fora_do_alvo:
+        print(f"Descartados por fora do alvo (ensino, órgão público, outro ramo): {descartados_fora_do_alvo}")
     if erros_de_linha:
         print(f"Atenção: {erros_de_linha} linha(s) do CSV tiveram erro e foram puladas (veja logs/prospeccao.log).")
     print(f"Planilha gerada: {caminho_saida}")
@@ -1160,6 +1164,7 @@ def processar(caminho_csv_bruto, caminho_queries=CAMINHO_QUERIES_PADRAO, callbac
         "descartados_por_site_ok": descartados_por_site_ok,
         "descartados_nota_baixa": descartados_nota_baixa,
         "descartados_sem_telefone": descartados_sem_telefone,
+        "descartados_fora_do_alvo": descartados_fora_do_alvo,
         "erros_de_linha": erros_de_linha,
     }
 
