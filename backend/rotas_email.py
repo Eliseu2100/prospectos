@@ -14,6 +14,7 @@ Regras de negócio:
 
 import logging
 import os
+import re
 import threading
 from datetime import date, datetime
 
@@ -117,11 +118,15 @@ def salvar_config():
         return _erro("Porta e limite diário precisam ser números.")
     if not (1 <= porta <= 65535) or not (1 <= limite <= 500):
         return _erro("Porta ou limite diário fora do intervalo permitido.")
+    senha_nova = str(dados.get("senha", "")).strip()
+    if senha_nova and "gmail.com" in host.lower() and len(re.sub(r"\s", "", senha_nova)) != 16:
+        return _erro("No Gmail a senha precisa ser uma senha de app de 16 letras (aparece em 4 grupos de 4). "
+                     "Crie em myaccount.google.com/apppasswords; precisa da verificação em duas etapas ligada.")
     db.salvar_config("smtp_host", host)
     db.salvar_config("smtp_porta", str(porta))
     db.salvar_config("smtp_usuario", usuario)
-    if str(dados.get("senha", "")).strip():
-        db.salvar_config("smtp_senha", str(dados["senha"]).strip())
+    if senha_nova:
+        db.salvar_config("smtp_senha", re.sub(r"\s", "", senha_nova) if "gmail.com" in host.lower() else senha_nova)
     db.salvar_config("smtp_remetente_nome", str(dados.get("remetente_nome", "")).strip())
     db.salvar_config("smtp_remetente_email", str(dados.get("remetente_email", "")).strip())
     db.salvar_config("email_limite_diario", str(limite))

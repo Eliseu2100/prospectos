@@ -299,3 +299,32 @@ class TestMontagemMime:
         assert "text/plain" in tipos and "text/html" in tipos and "image/png" in tipos and "application/pdf" in tipos
         assert msg["List-Unsubscribe"].startswith("<mailto:eu@teste.com") and msg["To"] == "cliente@empresa.com.br"
         assert capturado["login"] == ("eu@teste.com", "segredo")
+
+
+class TestSenhaGmail:
+    def test_recusa_senha_que_nao_e_de_app(self, cliente, banco):
+        r = cliente.post("/api/email/config", json={"host": "smtp.gmail.com", "porta": 465, "usuario": "eu@gmail.com",
+                                                      "senha": "x" * 64})
+        assert r.status_code == 400 and "16 letras" in r.get_json()["erro"] and "smtp_senha" not in banco
+
+    def test_aceita_senha_de_app_com_espacos_e_guarda_sem_eles(self, cliente, banco):
+        r = cliente.post("/api/email/config", json={"host": "smtp.gmail.com", "porta": 465, "usuario": "eu@gmail.com",
+                                                      "senha": "abcd efgh ijkl mnop"})
+        assert r.status_code == 200 and banco["smtp_senha"] == "abcdefghijklmnop"
+
+    def test_servidor_que_fecha_a_conexao_vira_mensagem_clara(self, banco, monkeypatch):
+        import smtplib
+
+        class SmtpQueCai:
+            def __init__(self, *a, **k): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def login(self, u, s): raise smtplib.SMTPServerDisconnected("Connection unexpectedly closed")
+
+        monkeypatch.setattr(smtplib, "SMTP_SSL", SmtpQueCai)
+        db.salvar_config("smtp_host", "smtp.gmail.com")
+        db.salvar_config("smtp_porta", "465")
+        db.salvar_config("smtp_usuario", "eu@gmail.com")
+        db.salvar_config("smtp_senha", "errada")
+        with pytest.raises(mensageiros.ErroEnvio, match="senha de app de 16 letras"):
+            mensageiros.enviar_email("a@b.com", "x", "y")

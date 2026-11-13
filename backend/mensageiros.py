@@ -184,6 +184,11 @@ def enviar_email(para, assunto, corpo, html=None, imagens=None, anexos=None):
             servidor.send_message(mensagem)
     except smtplib.SMTPAuthenticationError as erro:
         raise ErroEnvio("O servidor recusou o usuário ou a senha. No Gmail, use uma senha de app.") from erro
+    except smtplib.SMTPServerDisconnected as erro:
+        raise ErroEnvio(
+            "O servidor fechou a conexão logo depois de conectar. O motivo mais comum é senha errada: no Gmail "
+            "precisa ser uma senha de app de 16 letras (myaccount.google.com/apppasswords), não a senha da conta."
+        ) from erro
     except smtplib.SMTPRecipientsRefused as erro:
         raise ErroEnvio("O servidor recusou o endereço do destinatário.") from erro
     except (smtplib.SMTPException, OSError) as erro:
