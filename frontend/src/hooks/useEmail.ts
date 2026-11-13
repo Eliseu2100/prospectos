@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   emailService,
+  type EstiloEmail,
   type FiltrosEmail,
   type ImportarReceita,
   type NovoLeadEmail,
@@ -32,7 +33,7 @@ export function useSalvarConfigEmail() {
 
 export function useTestarConfigEmail() {
   return useMutation({
-    mutationFn: (para: string) => emailService.testarConfig(para),
+    mutationFn: ({ para, estilo }: { para: string; estilo?: EstiloEmail }) => emailService.testarConfig(para, estilo),
     onSuccess: () => toast.success("E-mail de teste enviado. Confira a caixa de entrada."),
     onError: (erro: Error) => toast.error(erro.message),
   })
@@ -107,8 +108,8 @@ export function useGerarEmail() {
 export function useEnviarEmail() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, assunto, corpo }: { id: number; assunto: string; corpo: string }) =>
-      emailService.enviar(id, { assunto, corpo }),
+    mutationFn: ({ id, assunto, corpo, estilo }: { id: number; assunto: string; corpo: string; estilo?: EstiloEmail }) =>
+      emailService.enviar(id, { assunto, corpo, estilo }),
     onSuccess: (_res, vars) => {
       queryClient.invalidateQueries({ queryKey: CHAVE_LEADS })
       queryClient.invalidateQueries({ queryKey: CHAVE_CONFIG })

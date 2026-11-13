@@ -552,6 +552,13 @@ def migrar_banco(conexao):
         )
         """
     )
+    colunas_email = {linha[1] for linha in conexao.execute("PRAGMA table_info(email_leads)")}
+    for coluna in ("porte", "natureza"):
+        if coluna not in colunas_email:
+            conexao.execute(f"ALTER TABLE email_leads ADD COLUMN {coluna} TEXT")
+    for nome_indice, coluna in (("status", "status"), ("setor", "setor"), ("cidade", "cidade"),
+                                ("atualizado", "atualizado_em")):
+        conexao.execute(f"CREATE INDEX IF NOT EXISTS idx_email_leads_{nome_indice} ON email_leads({coluna})")
     conexao.execute(
         """
         CREATE TABLE IF NOT EXISTS email_descadastros (

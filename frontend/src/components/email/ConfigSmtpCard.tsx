@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfigEmail, useSalvarConfigEmail, useTestarConfigEmail } from "@/hooks/useEmail"
-import type { ConfigSmtp } from "@/services/emailService"
+import { ROTULO_ESTILO_EMAIL, type ConfigSmtp, type EstiloEmail } from "@/services/emailService"
 
 function FormularioSmtp({ smtp }: { smtp: ConfigSmtp }) {
   const salvar = useSalvarConfigEmail()
@@ -22,6 +22,7 @@ function FormularioSmtp({ smtp }: { smtp: ConfigSmtp }) {
   const [anexarPdf, setAnexarPdf] = useState(smtp.anexar_pdf)
   const [primeiroSimples, setPrimeiroSimples] = useState(smtp.primeiro_simples)
   const [emailTeste, setEmailTeste] = useState("")
+  const [estiloTeste, setEstiloTeste] = useState<EstiloEmail>("simples")
 
   const pronto = smtp.senha_configurada && Boolean(smtp.host) && Boolean(smtp.remetente_email)
   const camposValidos = host.trim() && usuario.trim() && remetenteEmail.trim() && Number(porta) > 0
@@ -168,11 +169,23 @@ function FormularioSmtp({ smtp }: { smtp: ConfigSmtp }) {
             className="w-56"
             aria-label="E-mail de destino do teste"
           />
+          <select
+            value={estiloTeste}
+            onChange={(e) => setEstiloTeste(e.target.value as EstiloEmail)}
+            className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
+            aria-label="Formato do e-mail de teste"
+          >
+            {(Object.keys(ROTULO_ESTILO_EMAIL) as EstiloEmail[]).map((chave) => (
+              <option key={chave} value={chave}>
+                {ROTULO_ESTILO_EMAIL[chave]}
+              </option>
+            ))}
+          </select>
           <Button
             size="sm"
             variant="outline"
             disabled={!emailTeste.trim() || !pronto || testar.isPending}
-            onClick={() => testar.mutate(emailTeste.trim())}
+            onClick={() => testar.mutate({ para: emailTeste.trim(), estilo: estiloTeste })}
           >
             <Send className="size-4" />
             {testar.isPending ? "Enviando..." : "Enviar e-mail de teste"}

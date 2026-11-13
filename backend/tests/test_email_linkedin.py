@@ -45,8 +45,9 @@ def enviados(monkeypatch):
     """Substitui o envio SMTP e guarda o que seria enviado."""
     registro = []
 
-    def falso(para, assunto, corpo, html=None, imagens=None, anexos=None):
-        registro.append({"para": para, "assunto": assunto, "corpo": corpo, "html": html, "anexos": anexos or []})
+    def falso(para, assunto, corpo, html=None, imagens=None, anexos=None, cabecalho_descadastro=True):
+        registro.append({"para": para, "assunto": assunto, "corpo": corpo, "html": html, "anexos": anexos or [],
+                         "sem_cabecalho": not cabecalho_descadastro})
         return f"<id-{len(registro)}@teste>"
 
     monkeypatch.setattr(mensageiros, "enviar_email", falso)
@@ -131,7 +132,7 @@ class TestReceita:
         finally:
             conexao.close()
         assert resultado["importados"] == 1
-        assert tuple(linhas[0]) == ("Solar Boa", "dono@solarboa.com.br", "Campinas", "energia solar", "receita")
+        assert tuple(linhas[0]) == ("Solar Boa", "dono@solarboa.com.br", "Campinas - SP", "energia solar", "receita")
 
     def test_le_zip_direto_e_acha_municipios_na_pasta(self, banco, tmp_path):
         import zipfile
@@ -178,7 +179,8 @@ class TestEnvioDeEmail:
         r1 = cliente.post(f"/api/email/leads/{lead_id}/enviar", json={"assunto": "uma pergunta", "corpo": "Oi, tudo bem?"})
         assert r1.get_json() == {"ok": True, "status": "contatado"}
         assert enviados[0]["html"] is None and enviados[0]["anexos"] == []
-        assert "descadastrar" in enviados[0]["corpo"] and "Criação de Sites Premium" in enviados[0]["corpo"]
+        assert "não escrevo mais" in enviados[0]["corpo"] and "Criação de Sites Premium" in enviados[0]["corpo"]
+        assert enviados[0]["sem_cabecalho"] is True
         cliente.post(f"/api/email/leads/{lead_id}/enviar", json={"assunto": "outra", "corpo": "Segundo e-mail."})
         assert enviados[1]["html"] and "descadastrar" in enviados[1]["html"]
         assert enviados[1]["anexos"] == [str(pdf)]
@@ -365,3 +367,83 @@ class TestSenhaGmail:
         db.salvar_config("smtp_senha", "errada")
         with pytest.raises(mensageiros.ErroEnvio, match="senha de app de 16 letras"):
             mensageiros.enviar_email("a@b.com", "x", "y")
+
+
+class TestEstiloEscolhidoPorEnvio:
+    def _pdf(self, tmp_path, monkeypatch):
+        pdf = tmp_path / "proposta.pdf"
+        pdf.write_bytes(b"%PDF-1.4 teste")
+        monkeypatch.setattr(rotas_email, "_arquivo_anexo", lambda: str(pdf))
+        return str(pdf)
+
+    def test_escolher_marca_pdf_no_primeiro_envia_com_pdf(self, cliente, enviados, tmp_path, monkeypatch):
+        pdf = self._pdf(tmp_path, monkeypatch)
+        lead_id = _novo_lead(cliente)
+        r = cliente.post(f"/api/email/leads/{lead_id}/enviar", json={"assunto": "x", "corpo": "y", "estilo": "marca_pdf"})
+        assert r.status_code == 200
+        assert enviados[0]["html"] and enviados[0]["anexos"] == [pdf]
+
+    def test_escolha_vale_mesmo_com_interruptores_desligados(self, cliente, enviados, tmp_path, monkeypatch):
+        pdf = self._pdf(tmp_path, monkeypatch)
+        db.salvar_config("email_anexar_pdf", "0")
+        lead_id = _novo_lead(cliente)
+        cliente.post(f"/api/email/leads/{lead_id}/enviar", json={"assunto": "x", "corpo": "y", "estilo": "marca_pdf"})
+        assert enviados[0]["anexos"] == [pdf]
+
+    def test_marca_sem_pdf_e_simples_forcado(self, cliente, enviados, tmp_path, monkeypatch):
+        self._pdf(tmp_path, monkeypatch)
+        a, b = _novo_lead(cliente, "a@empresa.com.br"), _novo_lead(cliente, "b@empresa.com.br")
+        cliente.post(f"/api/email/leads/{a}/enviar", json={"assunto": "x", "corpo": "y", "estilo": "marca"})
+        assert enviados[0]["html"] and enviados[0]["anexos"] == []
+        cliente.post(f"/api/email/leads/{b}/enviar", json={"assunto": "x", "corpo": "y", "estilo": "simples"})
+        assert enviados[1]["html"] is None and enviados[1]["anexos"] == []
+
+    def test_pdf_pedido_e_arquivo_ausente_da_erro_claro(self, cliente, enviados, tmp_path, monkeypatch):
+        monkeypatch.setattr(rotas_email, "_arquivo_anexo", lambda: str(tmp_path / "nao-existe.pdf"))
+        lead_id = _novo_lead(cliente)
+        r = cliente.post(f"/api/email/leads/{lead_id}/enviar", json={"assunto": "x", "corpo": "y", "estilo": "marca_pdf"})
+        assert r.status_code == 400 and "PDF da proposta" in r.get_json()["erro"] and not enviados
+
+    def test_teste_de_envio_respeita_o_formato(self, cliente, enviados, tmp_path, monkeypatch):
+        pdf = self._pdf(tmp_path, monkeypatch)
+        cliente.post("/api/email/config/testar", json={"para": "eu@gmail.com", "estilo": "marca_pdf"})
+        assert enviados[0]["anexos"] == [pdf] and enviados[0]["html"]
+        cliente.post("/api/email/config/testar", json={"para": "eu@gmail.com"})
+        assert enviados[1]["html"] is None  # sem escolha: primeiro contato = texto simples
+
+
+class TestReceitaEmEscala:
+    def _linha(self, basico, fantasia, cnae, uf, municipio, email):
+        campos = [""] * 30
+        campos[0], campos[1], campos[2] = basico, "0001", "55"
+        campos[4], campos[5], campos[11], campos[19], campos[20], campos[27] = fantasia, "02", cnae, uf, municipio, email
+        return ";".join(f'"{c}"' for c in campos)
+
+    def test_todos_os_estados_setor_por_cnae_e_razao_social(self, banco, tmp_path):
+        import zipfile
+        pasta = tmp_path / "r"
+        pasta.mkdir()
+        linhas = [self._linha("11111111", "", "4322302", "SP", "6291", "a@hidraulica.com.br"),
+                  self._linha("22222222", "LOGISTICA RJ", "4930202", "RJ", "6001", "b@logrj.com.br"),
+                  self._linha("33333333", "FORA DA LISTA", "9999999", "SP", "6291", "c@fora.com.br")]
+        with zipfile.ZipFile(pasta / "Estabelecimentos0.zip", "w") as z:
+            z.writestr("E.ESTABELE", "\n".join(linhas).encode("latin-1"))
+        with zipfile.ZipFile(pasta / "Municipios.zip", "w") as z:
+            z.writestr("M.MUNICCSV", '"6291";"CAMPINAS"\n"6001";"RIO DE JANEIRO"\n'.encode("latin-1"))
+        empresas = ["11111111;HIDRAULICA CAMPINAS LTDA;2062;49;50000;03;", "22222222;LOG RJ SA;2054;49;1000;05;"]
+        with zipfile.ZipFile(pasta / "Empresas0.zip", "w") as z:
+            z.writestr("E.EMPRECSV", "\n".join(empresas).encode("latin-1"))
+        conexao = db.conectar()
+        try:
+            r = email_prospeccao.importar_receita(
+                conexao, str(pasta), ["4322302", "4930202"], "TODOS",
+                setor={"4322302": "instalações hidráulicas", "4930202": "transporte de carga"})
+            assert r["importados"] == 2
+            email_prospeccao.completar_com_empresas(conexao, str(pasta))
+            linhas = {l[0]: tuple(l) for l in conexao.execute(
+                "SELECT email, empresa, setor, cidade, porte, natureza FROM email_leads")}
+        finally:
+            conexao.close()
+        assert linhas["a@hidraulica.com.br"] == ("a@hidraulica.com.br", "Hidraulica Campinas Ltda",
+                                                  "instalações hidráulicas", "Campinas - SP", "pequeno porte", "2062")
+        assert linhas["b@logrj.com.br"][1:4] == ("Logistica Rj", "transporte de carga", "Rio De Janeiro - RJ")

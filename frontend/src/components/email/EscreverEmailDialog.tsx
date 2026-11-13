@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useEnviarEmail, useGerarEmail } from "@/hooks/useEmail"
-import type { LeadEmail } from "@/services/emailService"
+import { ROTULO_ESTILO_EMAIL, type EstiloEmail, type LeadEmail } from "@/services/emailService"
 
 function ConteudoEscrever({ lead, onFechar }: { lead: LeadEmail; onFechar: () => void }) {
   const gerar = useGerarEmail()
@@ -21,6 +21,8 @@ function ConteudoEscrever({ lead, onFechar }: { lead: LeadEmail; onFechar: () =>
   const [assunto, setAssunto] = useState("")
   const [corpo, setCorpo] = useState("")
   const [provedor, setProvedor] = useState("")
+  // primeiro contato: texto simples; quem já recebeu algo: marca com o PDF (dá para trocar a cada envio)
+  const [estilo, setEstilo] = useState<EstiloEmail>(lead.ultimo_envio_em ? "marca_pdf" : "simples")
   const iniciou = useRef(false)
 
   function aoGerar() {
@@ -46,7 +48,7 @@ function ConteudoEscrever({ lead, onFechar }: { lead: LeadEmail; onFechar: () =>
   }, [gerar, lead.id])
 
   function aoEnviar() {
-    enviar.mutate({ id: lead.id, assunto: assunto.trim(), corpo: corpo.trim() }, { onSuccess: onFechar })
+    enviar.mutate({ id: lead.id, assunto: assunto.trim(), corpo: corpo.trim(), estilo }, { onSuccess: onFechar })
   }
 
   const ocupado = gerar.isPending || enviar.isPending
@@ -81,6 +83,21 @@ function ConteudoEscrever({ lead, onFechar }: { lead: LeadEmail; onFechar: () =>
             placeholder={gerar.isPending ? "Gerando o texto..." : ""}
             className="max-h-[45vh] overflow-y-auto"
           />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="em-estilo">Como enviar</Label>
+          <select
+            id="em-estilo"
+            value={estilo}
+            onChange={(e) => setEstilo(e.target.value as EstiloEmail)}
+            className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm"
+          >
+            {(Object.keys(ROTULO_ESTILO_EMAIL) as EstiloEmail[]).map((chave) => (
+              <option key={chave} value={chave}>
+                {ROTULO_ESTILO_EMAIL[chave]}
+              </option>
+            ))}
+          </select>
         </div>
         <p className="text-xs text-muted-foreground">
           A assinatura e o pedido de descadastro entram automaticamente no envio.

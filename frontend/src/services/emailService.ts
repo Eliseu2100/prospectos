@@ -20,6 +20,14 @@ export interface ConfigSmtp {
   anexo_pdf_existe: boolean
 }
 
+export type EstiloEmail = "simples" | "marca" | "marca_pdf"
+
+export const ROTULO_ESTILO_EMAIL: Record<EstiloEmail, string> = {
+  simples: "Texto simples (cai mais na caixa de entrada)",
+  marca: "Com a marca (logo e assinatura)",
+  marca_pdf: "Com a marca e o PDF da proposta",
+}
+
 export interface SalvarSmtp {
   host: string
   porta: number
@@ -116,7 +124,8 @@ export const emailService = {
 
   salvarConfig: (dados: SalvarSmtp) => httpClient.post<{ ok: true }>("/api/email/config", dados),
 
-  testarConfig: (para: string) => httpClient.post<{ ok: true }>("/api/email/config/testar", { para }),
+  testarConfig: (para: string, estilo?: EstiloEmail) =>
+    httpClient.post<{ ok: true }>("/api/email/config/testar", { para, estilo }),
 
   listarLeads: (filtros: FiltrosEmail) =>
     httpClient.get<ListaLeadsEmail>(`/api/email/leads?${montarQuery(filtros)}`),
@@ -132,7 +141,7 @@ export const emailService = {
 
   gerar: (id: number) => httpClient.post<EmailGerado>(`/api/email/leads/${id}/gerar`),
 
-  enviar: (id: number, dados: { assunto: string; corpo: string }) =>
+  enviar: (id: number, dados: { assunto: string; corpo: string; estilo?: EstiloEmail }) =>
     httpClient.post<{ ok: true; status: StatusEmail }>(`/api/email/leads/${id}/enviar`, dados),
 
   mudarStatus: (id: number, status: StatusEmail) =>

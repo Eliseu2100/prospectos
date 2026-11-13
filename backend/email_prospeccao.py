@@ -246,9 +246,15 @@ def importar_receita(conexao, arquivo, cnaes, uf, municipio=None, municipios_arq
         raise ValueError("Não achei arquivos de Estabelecimentos nessa pasta.")
     municipios_arquivo = municipios_arquivo or municipios_da_pasta
     prefixos = tuple(re.sub(r"\D", "", c) for c in (cnaes or []) if re.sub(r"\D", "", c))
-    uf = (uf or "").strip().upper()
-    if not prefixos or len(uf) != 2:
-        raise ValueError("Informe ao menos um CNAE e a UF (2 letras).")
+    if isinstance(uf, (list, tuple, set)):
+        ufs = {str(u).strip().upper() for u in uf if str(u).strip()}
+    elif str(uf or "").strip().upper() in ("TODOS", "BRASIL"):
+        ufs = None  # todos os estados, numa passada só pelos arquivos
+    else:
+        ufs = {str(uf or "").strip().upper()}
+    if not prefixos or (ufs is not None and (not ufs or any(len(u) != 2 for u in ufs))):
+        raise ValueError("Informe ao menos um CNAE e a UF (2 letras, ou TODOS).")
+    rotulos = setor if isinstance(setor, dict) else None
     nomes_municipios = {}
     codigos_alvo = None
     if municipios_arquivo:
@@ -267,16 +273,22 @@ def importar_receita(conexao, arquivo, cnaes, uf, municipio=None, municipios_arq
             for linha in csv.reader(f, delimiter=";"):
                 if len(linha) <= COL_EMAIL:
                     continue
-                if (linha[COL_SITUACAO] != SITUACAO_ATIVA or linha[COL_UF] != uf
-                        or not linha[COL_CNAE].startswith(prefixos)):
+                if (linha[COL_SITUACAO] != SITUACAO_ATIVA or not linha[COL_CNAE].startswith(prefixos)
+                        or (ufs is not None and linha[COL_UF] not in ufs)):
                     continue
                 if codigos_alvo is not None and linha[COL_MUNICIPIO] not in codigos_alvo:
                     continue
                 cnpj = f"{linha[COL_CNPJ_BASICO]}{linha[COL_ORDEM]}{linha[COL_DV]}"
                 empresa = linha[COL_FANTASIA].strip().title() or f"CNPJ {cnpj}"
+                if rotulos:
+                    rotulo = next((r for p, r in rotulos.items() if linha[COL_CNAE].startswith(p)), None)
+                else:
+                    rotulo = setor
+                nome_cidade = nomes_municipios.get(linha[COL_MUNICIPIO])
                 novo = inserir_email_lead(
-                    conexao, empresa, linha[COL_EMAIL], setor=setor or linha[COL_CNAE][:4],
-                    cidade=nomes_municipios.get(linha[COL_MUNICIPIO]), fonte="receita", cnpj=cnpj,
+                    conexao, empresa, linha[COL_EMAIL], setor=rotulo or linha[COL_CNAE][:4],
+                    cidade=f"{nome_cidade} - {linha[COL_UF]}" if nome_cidade else None,
+                    fonte="receita", cnpj=cnpj,
                 )
                 if novo:
                     importados += 1
@@ -289,3 +301,37 @@ def importar_receita(conexao, arquivo, cnaes, uf, municipio=None, municipios_arq
             break
     conexao.commit()
     return {"importados": importados, "ignorados": ignorados}
+
+
+# Colunas do arquivo Empresas da Receita: básico, razão social, natureza jurídica, qualificação, capital, porte.
+PORTES = {"00": "não informado", "01": "microempresa", "03": "pequeno porte", "05": "demais"}
+NATUREZA_EMPRESARIO_INDIVIDUAL = "2135"
+
+
+def completar_com_empresas(conexao, pasta, progresso=None):
+    """Segunda passada: preenche razão social, porte e natureza jurídica dos leads da Receita, a partir
+    dos arquivos Empresas*.zip da mesma pasta. A razão social só entra onde o nome fantasia faltava."""
+    arquivos = sorted(os.path.join(pasta, n) for n in os.listdir(pasta) if n.lower().startswith("empresas"))
+    if not arquivos:
+        raise ValueError("Não achei arquivos Empresas*.zip nessa pasta.")
+    precisam = {}
+    for id_lead, cnpj, empresa in conexao.execute(
+            "SELECT id, cnpj, empresa FROM email_leads WHERE fonte = 'receita' AND cnpj IS NOT NULL AND porte IS NULL"):
+        precisam.setdefault(cnpj[:8], []).append((id_lead, empresa))
+    atualizados = 0
+    for caminho in arquivos:
+        lote = []
+        with _abrir_texto(caminho) as f:
+            for linha in csv.reader(f, delimiter=";"):
+                if len(linha) < 6 or linha[0] not in precisam:
+                    continue
+                razao = linha[1].strip().title()
+                for id_lead, empresa in precisam[linha[0]]:
+                    novo_nome = razao if empresa.startswith("CNPJ ") and razao else empresa
+                    lote.append((novo_nome, PORTES.get(linha[5], linha[5]), linha[2], id_lead))
+        conexao.executemany("UPDATE email_leads SET empresa = ?, porte = ?, natureza = ? WHERE id = ?", lote)
+        conexao.commit()
+        atualizados += len(lote)
+        if progresso is not None:
+            progresso["empresas_atualizadas"] = atualizados
+    return {"atualizados": atualizados}

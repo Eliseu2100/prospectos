@@ -142,7 +142,7 @@ def config_smtp():
     }
 
 
-def enviar_email(para, assunto, corpo, html=None, imagens=None, anexos=None):
+def enviar_email(para, assunto, corpo, html=None, imagens=None, anexos=None, cabecalho_descadastro=True):
     """Envia um e-mail: texto simples, com versão HTML opcional (e imagens embutidas por CID) e
     anexos. `imagens` = [(cid, caminho)], `anexos` = [caminho]. Devolve o Message-ID. Levanta
     ErroEnvio com mensagem amigável em qualquer falha - nada de exceção crua da rede na tela."""
@@ -159,7 +159,8 @@ def enviar_email(para, assunto, corpo, html=None, imagens=None, anexos=None):
     mensagem["Date"] = formatdate(localtime=True)
     mensagem["Message-ID"] = make_msgid(domain=cfg["remetente_email"].split("@")[-1])
     # descadastro por resposta: quem escreve "descadastrar" entra na lista de bloqueio
-    mensagem["List-Unsubscribe"] = f"<mailto:{cfg['remetente_email']}?subject=descadastrar>"
+    if cabecalho_descadastro:  # no texto simples fica de fora: esse cabeçalho marca o e-mail como lista/marketing
+        mensagem["List-Unsubscribe"] = f"<mailto:{cfg['remetente_email']}?subject=descadastrar>"
     mensagem.set_content(corpo)
     if html:
         mensagem.add_alternative(html, subtype="html")

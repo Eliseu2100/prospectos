@@ -50,12 +50,17 @@ def _dados_assinatura(remetente_email):
     }
 
 
-def texto_simples(corpo, remetente_email):
+LINHA_SAIDA_HUMANA = 'Se não fizer sentido, é só me responder "não" que eu não escrevo mais.'
+
+
+def texto_simples(corpo, remetente_email, humano=False):
+    """Texto puro com assinatura curta. `humano=True` troca o pedido de descadastro por uma frase de pessoa,
+    que pesa menos como e-mail de marketing."""
     a = _dados_assinatura(remetente_email)
     return (
         f"{corpo.strip()}\n\n--\n{a['nome']}\n{a['cargo']}\n"
         f"{('WhatsApp ' + a['whatsapp_texto'] + ' · ') if a['whatsapp_link'] else ''}{a['email']}\n\n"
-        f"{LINHA_DESCADASTRO}\n"
+        f"{LINHA_SAIDA_HUMANA if humano else LINHA_DESCADASTRO}\n"
     )
 
 

@@ -149,18 +149,35 @@ def salvar_config():
     return jsonify({"ok": True})
 
 
-def _montar_e_enviar(para, assunto, corpo, primeiro_contato):
-    cfg = mensageiros.config_smtp()
+ESTILOS_EMAIL = ("simples", "marca", "marca_pdf")
+
+
+def _estilo_automatico(primeiro_contato):
+    """Sem escolha do usuário: o primeiro e-mail de cada empresa em texto simples (se o interruptor estiver
+    ligado) e os seguintes com a marca, com o PDF se ele estiver ligado e o arquivo existir."""
     if primeiro_contato and _primeiro_simples():
-        # texto simples puro: só o texto e uma assinatura curta, sem HTML, imagem nem anexo
-        return mensageiros.enviar_email(para, assunto, email_modelo.texto_simples(corpo, cfg["remetente_email"]))
-    com_anexo = True
+        return "simples"
+    return "marca_pdf" if _anexar_pdf() and os.path.isfile(_arquivo_anexo()) else "marca"
+
+
+def _montar_e_enviar(para, assunto, corpo, primeiro_contato, estilo=None):
+    """`estilo`: simples (só texto, sem anexo), marca (HTML com a identidade) ou marca_pdf (HTML + PDF da
+    proposta). Quando o usuário escolhe, vale a escolha dele, ignorando os interruptores."""
+    cfg = mensageiros.config_smtp()
+    estilo = estilo if estilo in ESTILOS_EMAIL else _estilo_automatico(primeiro_contato)
+    texto = email_modelo.texto_simples(corpo, cfg["remetente_email"], humano=(estilo == "simples"))
+    if estilo == "simples":
+        # sem HTML, imagem, anexo nem cabeçalho de lista de e-mails: o que mais parece mensagem pessoal
+        return mensageiros.enviar_email(para, assunto, texto, cabecalho_descadastro=False)
     anexos = []
-    if com_anexo and _anexar_pdf() and os.path.isfile(_arquivo_anexo()):
+    if estilo == "marca_pdf":
+        if not os.path.isfile(_arquivo_anexo()):
+            raise mensageiros.ErroEnvio(
+                f"O PDF da proposta não foi encontrado em {_arquivo_anexo()}. Copie o arquivo para lá.")
         anexos.append(_arquivo_anexo())
     imagens = email_modelo.imagens_inline()
     return mensageiros.enviar_email(
-        para, assunto, email_modelo.texto_simples(corpo, cfg["remetente_email"]),
+        para, assunto, texto,
         html=email_modelo.montar_html(corpo, cfg["remetente_email"], com_imagens=bool(imagens)),
         imagens=imagens, anexos=anexos,
     )
@@ -168,14 +185,15 @@ def _montar_e_enviar(para, assunto, corpo, primeiro_contato):
 
 @bp.route("/api/email/config/testar", methods=["POST"])
 def testar_envio():
-    para = str((request.json or {}).get("para", "")).strip()
+    dados = request.json or {}
+    para = str(dados.get("para", "")).strip()
     if not email_prospeccao.email_valido(para):
         return _erro("Informe um e-mail válido para o teste.")
     try:
         _montar_e_enviar(
-            para, "teste do envio do Seriax OS",
-            "Este é um e-mail de teste do Seriax OS.\n\nSe você está lendo isto com o cabeçalho e a assinatura "
-            "da marca, o envio está funcionando.", primeiro_contato=True)
+            para, "teste de envio",
+            "Oi, tudo bem? Estou testando o envio por aqui. Se este e-mail chegou, está tudo certo.",
+            primeiro_contato=True, estilo=dados.get("estilo"))
     except mensageiros.ErroEnvio as excecao:
         return _erro(excecao)
     return jsonify({"ok": True})
@@ -294,7 +312,8 @@ def enviar_email(lead_id):
             "SELECT 1 FROM mensagens_conversa WHERE canal = 'email' AND lead_ref = ? AND autor = 'vendedor' LIMIT 1",
             (str(lead_id),)).fetchone() is not None
         try:
-            id_mensagem = _montar_e_enviar(lead["email"], assunto, corpo, primeiro_contato=not ja_enviou)
+            id_mensagem = _montar_e_enviar(lead["email"], assunto, corpo, primeiro_contato=not ja_enviou,
+                                           estilo=dados.get("estilo"))
         except mensageiros.ErroEnvio as excecao:
             return _erro(excecao)
         agora = _agora()
