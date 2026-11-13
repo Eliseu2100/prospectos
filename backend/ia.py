@@ -47,6 +47,9 @@ ORDEM_PROVEDORES_IA = ["gemini", "claude", "groq", "nvidia"]
 # Timeout por chamada de IA. Sem ele, um provedor que pendura a conexão travaria
 # a geração pra sempre e o fallback nunca chegaria ao próximo provedor.
 IA_TIMEOUT_SEGUNDOS = 45
+# O Gemini grátis às vezes pendura até o 504 (~43 s) antes de falhar; uma geração normal leva 3 a 8 s.
+# Com 20 s o fallback para o Claude entra rápido e a tela não parece travada (13/11/2026).
+IA_TIMEOUT_GEMINI_SEGUNDOS = 20
 
 NOMES_AMIGAVEIS_PROVEDOR = {
     "gemini": "Google Gemini",
@@ -163,7 +166,7 @@ def gemini_gerar_mensagem(system, user, temperatura=TEMPERATURA_COPY, formato_js
 
     chave = db.obter_config("gemini")
     # google-genai usa timeout em MILISSEGUNDOS no http_options
-    cliente = genai.Client(api_key=chave, http_options={"timeout": IA_TIMEOUT_SEGUNDOS * 1000})
+    cliente = genai.Client(api_key=chave, http_options={"timeout": IA_TIMEOUT_GEMINI_SEGUNDOS * 1000})
     config = {"system_instruction": system, "temperature": temperatura}
     if formato_json:
         config["response_mime_type"] = "application/json"
