@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { Check, Copy, ExternalLink, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -12,9 +14,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useClipboard } from "@/hooks/useClipboard"
-import { useGerarTextoLinkedin, useMudarStatusLinkedin } from "@/hooks/useLinkedin"
+import { useMudarStatusLinkedin } from "@/hooks/useLinkedin"
 import { cn } from "@/lib/utils"
-import type { LeadLinkedin, StatusLinkedin, TipoTextoLinkedin } from "@/services/linkedinService"
+import { linkedinService, type LeadLinkedin, type StatusLinkedin, type TipoTextoLinkedin } from "@/services/linkedinService"
 
 export interface PedidoTextoLinkedin {
   lead: LeadLinkedin
@@ -37,41 +39,41 @@ const LIMITE_PADRAO_CONEXAO = 300
 
 function ConteudoTexto({ pedido, onFechar }: { pedido: PedidoTextoLinkedin; onFechar: () => void }) {
   const { lead, tipo } = pedido
-  const gerar = useGerarTextoLinkedin()
   const mudarStatus = useMudarStatusLinkedin()
   const { copiado, copiar } = useClipboard()
   const [texto, setTexto] = useState("")
   const [provedor, setProvedor] = useState("")
   const [limite, setLimite] = useState<number | null>(tipo === "conexao" ? LIMITE_PADRAO_CONEXAO : null)
-  const iniciou = useRef(false)
+  const [rodada, setRodada] = useState(0)
 
-  function aoGerar() {
-    gerar.mutate(
-      { id: lead.id, tipo },
-      {
-        onSuccess: (res) => {
-          setTexto(res.texto)
-          setProvedor(res.provedor)
-          setLimite(res.limite_caracteres)
-        },
-      }
-    )
-  }
+  // Consulta e não mutação num efeito: o StrictMode soltava o observador e a tela ficava em
+  // "Gerando..." para sempre (mesmo defeito do e-mail, corrigido em 13/11/2026).
+  const gerar = useQuery({
+    queryKey: ["linkedin-gerado", lead.id, tipo, rodada],
+    queryFn: () => linkedinService.gerar(lead.id, tipo),
+    staleTime: Infinity,
+    gcTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  })
 
   useEffect(() => {
-    if (iniciou.current) return
-    iniciou.current = true
-    gerar.mutate(
-      { id: lead.id, tipo },
-      {
-        onSuccess: (res) => {
-          setTexto(res.texto)
-          setProvedor(res.provedor)
-          setLimite(res.limite_caracteres)
-        },
-      }
-    )
-  }, [gerar, lead.id, tipo])
+    if (gerar.data) {
+      setTexto(gerar.data.texto)
+      setProvedor(gerar.data.provedor)
+      setLimite(gerar.data.limite_caracteres)
+    }
+  }, [gerar.data])
+
+  useEffect(() => {
+    if (gerar.error) toast.error((gerar.error as Error).message)
+  }, [gerar.error])
+
+  const gerando = gerar.isFetching
+  function aoGerar() {
+    setRodada((r) => r + 1)
+  }
 
   const estourou = tipo === "conexao" && limite !== null && texto.length > limite
 
@@ -98,8 +100,8 @@ function ConteudoTexto({ pedido, onFechar }: { pedido: PedidoTextoLinkedin; onFe
           rows={tipo === "conexao" ? 6 : 9}
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          disabled={gerar.isPending}
-          placeholder={gerar.isPending ? "Gerando o texto..." : ""}
+          disabled={gerando}
+          placeholder={gerando ? "Gerando o texto..." : ""}
           className="max-h-[45vh] overflow-y-auto"
         />
         <div className="flex items-center justify-between text-xs">
@@ -125,8 +127,8 @@ function ConteudoTexto({ pedido, onFechar }: { pedido: PedidoTextoLinkedin; onFe
             </a>
           </Button>
         )}
-        <Button variant="outline" disabled={gerar.isPending} onClick={aoGerar}>
-          <RefreshCw className={gerar.isPending ? "size-4 animate-spin" : "size-4"} />
+        <Button variant="outline" disabled={gerando} onClick={aoGerar}>
+          <RefreshCw className={gerando ? "size-4 animate-spin" : "size-4"} />
           Gerar de novo
         </Button>
         <Button variant="outline" disabled={!texto.trim()} onClick={() => copiar(texto)}>
@@ -134,7 +136,7 @@ function ConteudoTexto({ pedido, onFechar }: { pedido: PedidoTextoLinkedin; onFe
           {copiado ? "Copiado" : "Copiar"}
         </Button>
         <Button
-          disabled={!texto.trim() || estourou || gerar.isPending || mudarStatus.isPending}
+          disabled={!texto.trim() || estourou || gerando || mudarStatus.isPending}
           onClick={aoMarcarEnviado}
         >
           {mudarStatus.isPending ? "Salvando..." : "Marquei como enviado"}

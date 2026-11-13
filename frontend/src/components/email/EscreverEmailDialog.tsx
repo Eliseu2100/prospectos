@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { RefreshCw, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,46 +14,53 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { useEnviarEmail, useGerarEmail } from "@/hooks/useEmail"
-import { ROTULO_ESTILO_EMAIL, type EstiloEmail, type LeadEmail } from "@/services/emailService"
+import { useEnviarEmail } from "@/hooks/useEmail"
+import { emailService, ROTULO_ESTILO_EMAIL, type EstiloEmail, type LeadEmail } from "@/services/emailService"
 
 function ConteudoEscrever({ lead, onFechar }: { lead: LeadEmail; onFechar: () => void }) {
-  const gerar = useGerarEmail()
   const enviar = useEnviarEmail()
   const [assunto, setAssunto] = useState("")
   const [corpo, setCorpo] = useState("")
   const [provedor, setProvedor] = useState("")
   // primeiro contato: texto simples; quem já recebeu algo: marca com o PDF (dá para trocar a cada envio)
   const [estilo, setEstilo] = useState<EstiloEmail>(lead.ultimo_envio_em ? "marca_pdf" : "simples")
-  const iniciou = useRef(false)
+  const [rodada, setRodada] = useState(0)
 
-  function aoGerar() {
-    gerar.mutate(lead.id, {
-      onSuccess: (res) => {
-        setAssunto(res.assunto)
-        setCorpo(res.corpo)
-        setProvedor(res.provedor)
-      },
-    })
-  }
+  // Consulta (e não mutação disparada num efeito): o StrictMode do React solta o observador da mutação
+  // no remonte e a tela ficava em "Gerando..." para sempre, mesmo com a resposta 200 (13/11/2026).
+  // Sem refetch ao voltar para a janela, para não apagar o que o Eliseu já editou.
+  const gerar = useQuery({
+    queryKey: ["email-gerado", lead.id, rodada],
+    queryFn: () => emailService.gerar(lead.id),
+    staleTime: Infinity,
+    gcTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  })
 
   useEffect(() => {
-    if (iniciou.current) return
-    iniciou.current = true
-    gerar.mutate(lead.id, {
-      onSuccess: (res) => {
-        setAssunto(res.assunto)
-        setCorpo(res.corpo)
-        setProvedor(res.provedor)
-      },
-    })
-  }, [gerar, lead.id])
+    if (gerar.data) {
+      setAssunto(gerar.data.assunto)
+      setCorpo(gerar.data.corpo)
+      setProvedor(gerar.data.provedor)
+    }
+  }, [gerar.data])
+
+  useEffect(() => {
+    if (gerar.error) toast.error((gerar.error as Error).message)
+  }, [gerar.error])
+
+  const gerando = gerar.isFetching
+  function aoGerar() {
+    setRodada((r) => r + 1)
+  }
 
   function aoEnviar() {
     enviar.mutate({ id: lead.id, assunto: assunto.trim(), corpo: corpo.trim(), estilo }, { onSuccess: onFechar })
   }
 
-  const ocupado = gerar.isPending || enviar.isPending
+  const ocupado = gerando || enviar.isPending
 
   return (
     <>
@@ -68,8 +77,8 @@ function ConteudoEscrever({ lead, onFechar }: { lead: LeadEmail; onFechar: () =>
             id="em-assunto"
             value={assunto}
             onChange={(e) => setAssunto(e.target.value)}
-            disabled={gerar.isPending}
-            placeholder={gerar.isPending ? "Gerando..." : ""}
+            disabled={gerando}
+            placeholder={gerando ? "Gerando..." : ""}
           />
         </div>
         <div className="space-y-1.5">
@@ -79,8 +88,8 @@ function ConteudoEscrever({ lead, onFechar }: { lead: LeadEmail; onFechar: () =>
             rows={10}
             value={corpo}
             onChange={(e) => setCorpo(e.target.value)}
-            disabled={gerar.isPending}
-            placeholder={gerar.isPending ? "Gerando o texto..." : ""}
+            disabled={gerando}
+            placeholder={gerando ? "Gerando o texto..." : ""}
             className="max-h-[45vh] overflow-y-auto"
           />
         </div>
@@ -106,7 +115,7 @@ function ConteudoEscrever({ lead, onFechar }: { lead: LeadEmail; onFechar: () =>
       </div>
       <DialogFooter>
         <Button variant="outline" disabled={ocupado} onClick={aoGerar}>
-          <RefreshCw className={gerar.isPending ? "size-4 animate-spin" : "size-4"} />
+          <RefreshCw className={gerando ? "size-4 animate-spin" : "size-4"} />
           Gerar de novo
         </Button>
         <Button disabled={ocupado || !assunto.trim() || !corpo.trim()} onClick={aoEnviar}>
