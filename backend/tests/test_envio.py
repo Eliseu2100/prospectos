@@ -188,6 +188,16 @@ class TestConexaoWhatsapp:
         corpo = cliente.post("/api/envio/whatsapp/conectar").get_json()
         assert corpo == {"conectado": False, "qrcode": "data:image/png;base64,AAA"}
 
+    def test_desconectar_faz_logout_quando_conectado(self, cliente, http, evolution_configurada):
+        http.resposta = RespostaFalsa(200, {"instance": {"state": "open"}, "status": "SUCCESS"})
+        corpo = cliente.post("/api/envio/whatsapp/desconectar").get_json()
+        assert corpo == {"desconectado": True}
+
+    def test_desconectar_sem_conexao_nao_faz_nada(self, cliente, http, evolution_configurada):
+        http.resposta = RespostaFalsa(200, {"instance": {"state": "close"}})
+        corpo = cliente.post("/api/envio/whatsapp/desconectar").get_json()
+        assert corpo == {"desconectado": False}
+
 
 class TestConfigEnvio:
     def test_chave_evolution_vai_pro_cofre(self, cliente, banco):

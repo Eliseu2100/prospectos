@@ -112,6 +112,18 @@ def conectar_whatsapp():
     return dados.get("base64")
 
 
+def desconectar_whatsapp():
+    """Desconecta o aparelho da Evolution (logout). A instância e o histórico enviado
+    continuam; depois é só gerar um QR novo com `conectar_whatsapp`. Serve para refazer as
+    chaves de criptografia quando a Evolution deixa de ler as respostas (erros "Bad MAC")."""
+    _, _, instancia = config_evolution()
+    estado = estado_whatsapp()
+    if estado in ("inexistente", "close"):
+        return False
+    _evolution("DELETE", f"/instance/logout/{instancia}")
+    return True
+
+
 def numero_internacional(telefone):
     """Formato que a Evolution espera: só dígitos, com DDI 55."""
     digitos = re.sub(r"\D", "", telefone or "")

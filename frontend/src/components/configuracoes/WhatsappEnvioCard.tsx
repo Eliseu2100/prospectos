@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react"
-import { CheckCircle2, MessageCircle, QrCode } from "lucide-react"
+import { CheckCircle2, LogOut, MessageCircle, QrCode } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   useConectarWhatsapp,
   useConfigEnvio,
+  useDesconectarWhatsapp,
   useEstadoWhatsapp,
   useSalvarWhatsapp,
 } from "@/hooks/useEnvio"
@@ -23,6 +24,7 @@ export function WhatsappEnvioCard() {
   const { data: config, isLoading } = useConfigEnvio()
   const salvar = useSalvarWhatsapp()
   const conectar = useConectarWhatsapp()
+  const desconectar = useDesconectarWhatsapp()
   const [qrcode, setQrcode] = useState<string | null>(null)
   const { data: estado } = useEstadoWhatsapp(qrcode !== null)
 
@@ -60,6 +62,14 @@ export function WhatsappEnvioCard() {
 
   const handleConectar = () =>
     conectar.mutate(undefined, { onSuccess: (res) => setQrcode(res.qrcode) })
+
+  const handleDesconectar = () => {
+    const confirmou = window.confirm(
+      "Desconectar o WhatsApp? Os envios e o piloto param até você escanear um QR code novo. " +
+        "Use quando as respostas deixarem de chegar ao CRM."
+    )
+    if (confirmou) desconectar.mutate(undefined, { onSuccess: () => handleConectar() })
+  }
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl bg-card p-4">
@@ -120,6 +130,12 @@ export function WhatsappEnvioCard() {
         <Button size="sm" disabled={salvar.isPending} onClick={handleSalvar}>
           {salvar.isPending ? "Salvando..." : "Salvar"}
         </Button>
+        {conectado && (
+          <Button size="sm" variant="outline" disabled={desconectar.isPending} onClick={handleDesconectar}>
+            <LogOut className="size-4" />
+            {desconectar.isPending ? "Desconectando..." : "Desconectar e gerar novo QR code"}
+          </Button>
+        )}
         {!conectado && config.whatsapp.chave_configurada && (
           <Button size="sm" variant="outline" disabled={conectar.isPending} onClick={handleConectar}>
             <QrCode className="size-4" />

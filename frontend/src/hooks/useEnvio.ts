@@ -56,6 +56,18 @@ export function useConectarWhatsapp() {
   })
 }
 
+export function useDesconectarWhatsapp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: envioService.desconectarWhatsapp,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CHAVE_ESTADO })
+      toast.success("WhatsApp desconectado. Gere um QR code novo para reconectar.")
+    },
+    onError: (erro: Error) => toast.error(erro.message),
+  })
+}
+
 export function useSalvarTelegram() {
   return useMutacaoComToast(
     (dados: { token?: string; chat_id?: string }) => envioService.salvarTelegram(dados),

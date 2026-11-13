@@ -200,6 +200,15 @@ def conectar_whatsapp():
     return jsonify({"conectado": qrcode is None, "qrcode": qrcode})
 
 
+@bp.route("/api/envio/whatsapp/desconectar", methods=["POST"])
+def desconectar_whatsapp():
+    try:
+        desconectou = mensageiros.desconectar_whatsapp()
+    except mensageiros.ErroEnvio as excecao:
+        return _erro(excecao)
+    return jsonify({"desconectado": desconectou})
+
+
 def enviar_e_registrar(canal, lead_ref, lead, texto):
     """Envia pela Evolution e grava no histórico (origem "app"), guarda o JID e
     passa lead do Maps de "novo" pra "contatado". Retorna o status novo (ou None).

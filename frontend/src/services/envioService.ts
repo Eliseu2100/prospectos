@@ -76,6 +76,9 @@ export const envioService = {
   conectarWhatsapp: () =>
     httpClient.post<{ conectado: boolean; qrcode: string | null }>("/api/envio/whatsapp/conectar"),
 
+  desconectarWhatsapp: () =>
+    httpClient.post<{ desconectado: boolean }>("/api/envio/whatsapp/desconectar"),
+
   enviarWhatsapp: (canal: string, leadRef: string, texto: string) =>
     httpClient.post<EnvioWhatsappResposta>(
       `/api/envio/whatsapp/${canal}/${encodeURIComponent(leadRef)}`,
