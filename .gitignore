@@ -17,3 +17,6 @@ brandkit/
 
 # playbook de nichos do vendedor (material de uso pessoal - fica só na pasta de dados)
 playbook_nichos.json
+
+# Análises da prospecção: citam leads e conversas reais, ficam só na máquina (o repositório é público)
+docs/ANALISE-PROSPECCAO-*.md
