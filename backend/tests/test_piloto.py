@@ -647,3 +647,17 @@ def test_corrige_apresentacao_eu_virgula_nome():
     assert ia.corrigir_apresentacao("Bom dia, eu, Eliseu, notei que o site demora.") == \
         "Bom dia, sou o Eliseu e notei que o site demora."
     assert ia.corrigir_apresentacao("Bom dia, aqui é o Eliseu.") == "Bom dia, aqui é o Eliseu."
+
+
+class TestRegraDePreco:
+    """Quem pergunta preço recebe UM valor, com o contrato junto e uma pergunta de sim ou não (13/11/2026)."""
+
+    def test_prompt_manda_dar_um_valor_so(self):
+        texto = ia.SYSTEM_PILOTO_RESPOSTA
+        assert "Dê UM valor só" in texto
+        assert "Nunca liste duas opções" in texto
+        assert "momento financeiro" in texto  # citado só para proibir
+
+    def test_prompt_da_oferta_chega_ao_modelo(self):
+        prompt = ia.montar_prompt_piloto_resposta({"nome": "X"}, [], "Landing Page Express: R$ 300 + R$ 50/mês")
+        assert "Landing Page Express: R$ 300 + R$ 50/mês" in prompt
