@@ -121,7 +121,7 @@ def test_claude_recusa_vira_erro_para_o_fallback(monkeypatch):
         ia.claude_gerar_mensagem("sys", "user")
 
 
-def test_claude_e_o_segundo_depois_do_gemini(monkeypatch):
+def test_claude_e_o_primeiro_e_nenhum_outro_e_chamado(monkeypatch):
     chamados = []
 
     def falha(nome):
@@ -142,4 +142,25 @@ def test_claude_e_o_segundo_depois_do_gemini(monkeypatch):
 
     resultado, provedor, _avisos = ia.executar_com_fallback("s", "u")
     assert (resultado, provedor) == ("resposta do claude", "claude")
-    assert chamados == ["gemini", "claude"]  # a Groq nem é chamada
+    assert chamados == ["claude"]  # Claude responde primeiro; Gemini e Groq nem são chamados
+
+
+def test_gemini_assume_quando_o_claude_falha(monkeypatch):
+    chamados = []
+
+    def claude(*a, **k):
+        chamados.append("claude")
+        raise ErroApi(529, "overloaded")
+
+    def gemini(*a, **k):
+        chamados.append("gemini")
+        return "resposta do gemini"
+
+    monkeypatch.setattr(db, "obter_config", lambda chave, default=None: "chave")
+    monkeypatch.setattr(ia, "_provedores_em_cooldown", {})
+    monkeypatch.setitem(ia.GERADORES, "claude", claude)
+    monkeypatch.setitem(ia.GERADORES, "gemini", gemini)
+
+    resultado, provedor, _avisos = ia.executar_com_fallback("s", "u")
+    assert (resultado, provedor) == ("resposta do gemini", "gemini")
+    assert chamados == ["claude", "gemini"]

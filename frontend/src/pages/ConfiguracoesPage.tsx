@@ -51,9 +51,9 @@ export function ConfiguracoesPage() {
           </h2>
           <p className="text-sm text-muted-foreground">
             As chaves abaixo são usadas para gerar mensagens por IA. O sistema
-            tenta cada provedor na ordem Gemini → Claude → Groq → NVIDIA, e
+            tenta cada provedor na ordem Claude → Gemini → Groq → NVIDIA, e
             passa para o próximo automaticamente se algum falhar ou ficar sem
-            cota. O Claude é pago, mas só é usado quando o Gemini falha.
+            cota. O Claude é pago (centavos por dia) e responde primeiro, por ser o mais estável.
           </p>
         </div>
 
