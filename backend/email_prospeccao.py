@@ -14,9 +14,12 @@ entra de novo.
 
 import csv
 import html
+import io
 import ipaddress
 import logging
+import os
 import re
+import zipfile
 from datetime import datetime
 from urllib.parse import urljoin, urlparse
 
@@ -199,10 +202,34 @@ COL_UF, COL_MUNICIPIO, COL_EMAIL = 19, 20, 27
 SITUACAO_ATIVA = "02"
 
 
+def _abrir_texto(caminho):
+    """Abre o arquivo da Receita como texto (Latin-1), seja .csv solto ou .zip (lê o arquivo de dentro
+    direto do zip, sem extrair para o disco)."""
+    if str(caminho).lower().endswith(".zip"):
+        zf = zipfile.ZipFile(caminho)
+        return io.TextIOWrapper(zf.open(zf.namelist()[0]), encoding="latin-1", newline="")
+    return open(caminho, encoding="latin-1", newline="")
+
+
+def arquivos_da_receita(caminho):
+    """(arquivos de Estabelecimentos, arquivo de Municípios ou None). `caminho` pode ser um arquivo
+    ou uma pasta com os arquivos baixados (Estabelecimentos0..9 e Municipios, .zip ou extraídos)."""
+    if os.path.isfile(caminho):
+        return [caminho], None
+    estabelecimentos, municipios = [], None
+    for nome in sorted(os.listdir(caminho)):
+        baixo = nome.lower()
+        if baixo.startswith("estabelecimentos") or baixo.endswith(".estabele"):
+            estabelecimentos.append(os.path.join(caminho, nome))
+        elif baixo.startswith("municipios") or baixo.endswith(".municcsv"):
+            municipios = os.path.join(caminho, nome)
+    return estabelecimentos, municipios
+
+
 def carregar_municipios(arquivo):
     """{codigo: nome} do arquivo Municipios da Receita (codigo;NOME)."""
     municipios = {}
-    with open(arquivo, encoding="latin-1", newline="") as f:
+    with _abrir_texto(arquivo) as f:
         for linha in csv.reader(f, delimiter=";"):
             if len(linha) >= 2:
                 municipios[linha[0].strip('" ')] = linha[1].strip('" ').title()
@@ -214,6 +241,10 @@ def importar_receita(conexao, arquivo, cnaes, uf, municipio=None, municipios_arq
     """Importa empresas ativas da base aberta da Receita. `cnaes` são prefixos (só dígitos,
     ex.: "4321", "7112"); `uf` a sigla; `municipio` o nome (exige `municipios_arquivo`).
     Retorna {"importados", "ignorados"}."""
+    arquivos, municipios_da_pasta = arquivos_da_receita(arquivo)
+    if not arquivos:
+        raise ValueError("Não achei arquivos de Estabelecimentos nessa pasta.")
+    municipios_arquivo = municipios_arquivo or municipios_da_pasta
     prefixos = tuple(re.sub(r"\D", "", c) for c in (cnaes or []) if re.sub(r"\D", "", c))
     uf = (uf or "").strip().upper()
     if not prefixos or len(uf) != 2:
@@ -231,25 +262,30 @@ def importar_receita(conexao, arquivo, cnaes, uf, municipio=None, municipios_arq
             raise ValueError(f"Município não encontrado no arquivo: {municipio}")
 
     importados = ignorados = 0
-    with open(arquivo, encoding="latin-1", newline="") as f:
-        for linha in csv.reader(f, delimiter=";"):
-            if len(linha) <= COL_EMAIL:
-                continue
-            if linha[COL_SITUACAO] != SITUACAO_ATIVA or linha[COL_UF] != uf or not linha[COL_CNAE].startswith(prefixos):
-                continue
-            if codigos_alvo is not None and linha[COL_MUNICIPIO] not in codigos_alvo:
-                continue
-            cnpj = f"{linha[COL_CNPJ_BASICO]}{linha[COL_ORDEM]}{linha[COL_DV]}"
-            empresa = linha[COL_FANTASIA].strip().title() or f"CNPJ {cnpj}"
-            novo = inserir_email_lead(
-                conexao, empresa, linha[COL_EMAIL], setor=setor or linha[COL_CNAE][:4],
-                cidade=nomes_municipios.get(linha[COL_MUNICIPIO]), fonte="receita", cnpj=cnpj,
-            )
-            if novo:
-                importados += 1
-            else:
-                ignorados += 1
-            if limite and importados >= limite:
-                break
+    for caminho in arquivos:
+        with _abrir_texto(caminho) as f:
+            for linha in csv.reader(f, delimiter=";"):
+                if len(linha) <= COL_EMAIL:
+                    continue
+                if (linha[COL_SITUACAO] != SITUACAO_ATIVA or linha[COL_UF] != uf
+                        or not linha[COL_CNAE].startswith(prefixos)):
+                    continue
+                if codigos_alvo is not None and linha[COL_MUNICIPIO] not in codigos_alvo:
+                    continue
+                cnpj = f"{linha[COL_CNPJ_BASICO]}{linha[COL_ORDEM]}{linha[COL_DV]}"
+                empresa = linha[COL_FANTASIA].strip().title() or f"CNPJ {cnpj}"
+                novo = inserir_email_lead(
+                    conexao, empresa, linha[COL_EMAIL], setor=setor or linha[COL_CNAE][:4],
+                    cidade=nomes_municipios.get(linha[COL_MUNICIPIO]), fonte="receita", cnpj=cnpj,
+                )
+                if novo:
+                    importados += 1
+                else:
+                    ignorados += 1
+                if limite and importados >= limite:
+                    break
+        conexao.commit()
+        if limite and importados >= limite:
+            break
     conexao.commit()
     return {"importados": importados, "ignorados": ignorados}

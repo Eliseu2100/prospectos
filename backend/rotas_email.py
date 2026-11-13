@@ -380,8 +380,9 @@ def estado_importacao():
 def importar_da_receita():
     dados = request.json or {}
     arquivo = str(dados.get("arquivo", "")).strip().strip('"')
-    if not os.path.isfile(arquivo):
-        return _erro("Arquivo não encontrado. Informe o caminho completo do arquivo de Estabelecimentos da Receita.")
+    if not (os.path.isfile(arquivo) or os.path.isdir(arquivo)):
+        return _erro("Caminho não encontrado. Informe a pasta onde estão os arquivos da Receita (Estabelecimentos e "
+                     "Municípios) ou o caminho de um arquivo de Estabelecimentos.")
     municipios = str(dados.get("municipios_arquivo", "")).strip().strip('"') or None
     if municipios and not os.path.isfile(municipios):
         return _erro("Arquivo de Municípios não encontrado.")

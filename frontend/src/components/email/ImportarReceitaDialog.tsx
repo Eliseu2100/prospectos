@@ -44,18 +44,18 @@ function FormularioReceita({ onFechar }: { onFechar: () => void }) {
       <DialogHeader>
         <DialogTitle>Importar da base da Receita</DialogTitle>
         <DialogDescription>
-          Lê o arquivo de Estabelecimentos da Receita Federal que já está no seu computador e traz só as
-          empresas dos CNAEs e da região que você indicar.
+          Lê os arquivos da Receita Federal que você já baixou (pode deixar em .zip) e traz só as empresas dos
+          CNAEs e da região que você indicar. Informe a pasta onde estão os arquivos de Estabelecimentos e o de Municípios.
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-3">
         <div className="space-y-1.5">
-          <Label htmlFor="rf-arquivo">Caminho do arquivo</Label>
+          <Label htmlFor="rf-arquivo">Pasta com os arquivos da Receita</Label>
           <Input
             id="rf-arquivo"
             value={arquivo}
             onChange={(e) => setArquivo(e.target.value)}
-            placeholder="C:\dados\Estabelecimentos0.csv"
+            placeholder="C:eceita"
           />
         </div>
         <div className="space-y-1.5">

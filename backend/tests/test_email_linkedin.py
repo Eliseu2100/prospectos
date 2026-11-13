@@ -133,6 +133,31 @@ class TestReceita:
         assert resultado["importados"] == 1
         assert tuple(linhas[0]) == ("Solar Boa", "dono@solarboa.com.br", "Campinas", "energia solar", "receita")
 
+    def test_le_zip_direto_e_acha_municipios_na_pasta(self, banco, tmp_path):
+        import zipfile
+        pasta = tmp_path / "receita"
+        pasta.mkdir()
+        linhas = [self._linha("11111111", "SOLAR BOA", "02", "4321500", "SP", "6291", "dono@solarboa.com.br"),
+                  self._linha("22222222", "SOLAR LONGE", "02", "4321500", "SP", "7107", "x@longe.com.br")]
+        with zipfile.ZipFile(pasta / "Estabelecimentos0.zip", "w") as z:
+            z.writestr("K3241.K03200Y0.D61010.ESTABELE", "\n".join(linhas).encode("latin-1"))
+        with zipfile.ZipFile(pasta / "Municipios.zip", "w") as z:
+            z.writestr("F.K03200$Z.D61010.MUNICCSV", '"6291";"CAMPINAS"\n"7107";"SAO PAULO"\n'.encode("latin-1"))
+        conexao = db.conectar()
+        try:
+            r = email_prospeccao.importar_receita(conexao, str(pasta), ["4321"], "SP", municipio="Campinas")
+        finally:
+            conexao.close()
+        assert r["importados"] == 1
+
+    def test_pasta_sem_estabelecimentos_da_erro(self, banco, tmp_path):
+        conexao = db.conectar()
+        try:
+            with pytest.raises(ValueError, match="Estabelecimentos"):
+                email_prospeccao.importar_receita(conexao, str(tmp_path), ["4321"], "SP")
+        finally:
+            conexao.close()
+
     def test_municipio_exige_arquivo(self, banco, tmp_path):
         arquivo = tmp_path / "e.csv"
         arquivo.write_text("", encoding="latin-1")
