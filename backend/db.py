@@ -36,7 +36,7 @@ CHAVES_CONFIG_VALIDAS = {
 # Chaves que são segredo de verdade: ficam no cofre de credenciais do sistema
 # (Windows Credential Manager, via keyring/DPAPI), nunca em plaintext no
 # leads.db - o banco entra nos backups automáticos, o cofre não.
-CHAVES_SECRETAS = set(CHAVES_CONFIG_VALIDAS) | {"evolution_api_key", "telegram_bot_token"}
+CHAVES_SECRETAS = set(CHAVES_CONFIG_VALIDAS) | {"evolution_api_key", "telegram_bot_token", "smtp_senha"}
 _SERVICO_KEYRING = "ProspectOS"
 
 # Configs de envio (WhatsApp/Telegram) que também podem vir do .env

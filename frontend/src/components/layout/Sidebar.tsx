@@ -5,12 +5,14 @@ import {
   Bot,
   ChevronLeft,
   ListTodo,
+  Mail,
   MapPin,
   MessagesSquare,
   Settings,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { InstagramIcon } from "@/components/icons/InstagramIcon"
+import { LinkedinIcon } from "@/components/icons/LinkedinIcon"
 import { useMediaQuery } from "@/hooks/useMediaQuery"
 
 const CHAVE_COLAPSADA = "seriax-sidebar-colapsada"
@@ -22,6 +24,8 @@ const NAV_PRINCIPAL = [
   { to: "/whatsapp", icone: MessagesSquare, rotulo: "WhatsApp" },
   { to: "/leads", icone: MapPin, rotulo: "Google Maps" },
   { to: "/instagram", icone: InstagramIcon, rotulo: "Instagram" },
+  { to: "/email", icone: Mail, rotulo: "E-mail" },
+  { to: "/linkedin", icone: LinkedinIcon, rotulo: "LinkedIn" },
 ]
 
 const NAV_RODAPE = [

@@ -13,6 +13,7 @@ As regras de negócio (limite diário, registro no histórico) ficam em rotas_en
 """
 
 import logging
+import os
 import re
 
 import requests
@@ -110,6 +111,85 @@ def conectar_whatsapp():
             return qrcode
     dados = _evolution("GET", f"/instance/connect/{instancia}")
     return dados.get("base64")
+
+
+# ---------------------------------------------------------------------------
+# E-mail (SMTP)
+# ---------------------------------------------------------------------------
+
+PORTA_SMTP_PADRAO = 587
+TIMEOUT_SMTP_SEGUNDOS = 25
+
+
+def config_smtp():
+    """Dicionário com a configuração de envio por e-mail, ou levanta ErroEnvio se faltar algo."""
+    host = (db.obter_config("smtp_host") or "").strip()
+    usuario = (db.obter_config("smtp_usuario") or "").strip()
+    senha = db.obter_config("smtp_senha") or ""
+    if not (host and usuario and senha):
+        raise ErroEnvio("E-mail não configurado. Preencha servidor, usuário e senha SMTP na página de e-mail.")
+    try:
+        porta = int(db.obter_config("smtp_porta") or PORTA_SMTP_PADRAO)
+    except ValueError:
+        porta = PORTA_SMTP_PADRAO
+    return {
+        "host": host,
+        "porta": porta,
+        "usuario": usuario,
+        "senha": senha,
+        "remetente_nome": (db.obter_config("smtp_remetente_nome") or "").strip(),
+        "remetente_email": (db.obter_config("smtp_remetente_email") or "").strip() or usuario,
+    }
+
+
+def enviar_email(para, assunto, corpo, html=None, imagens=None, anexos=None):
+    """Envia um e-mail: texto simples, com versão HTML opcional (e imagens embutidas por CID) e
+    anexos. `imagens` = [(cid, caminho)], `anexos` = [caminho]. Devolve o Message-ID. Levanta
+    ErroEnvio com mensagem amigável em qualquer falha - nada de exceção crua da rede na tela."""
+    import smtplib
+    import ssl
+    from email.message import EmailMessage
+    from email.utils import formataddr, formatdate, make_msgid
+
+    cfg = config_smtp()
+    mensagem = EmailMessage()
+    mensagem["From"] = formataddr((cfg["remetente_nome"], cfg["remetente_email"]))
+    mensagem["To"] = para
+    mensagem["Subject"] = assunto
+    mensagem["Date"] = formatdate(localtime=True)
+    mensagem["Message-ID"] = make_msgid(domain=cfg["remetente_email"].split("@")[-1])
+    # descadastro por resposta: quem escreve "descadastrar" entra na lista de bloqueio
+    mensagem["List-Unsubscribe"] = f"<mailto:{cfg['remetente_email']}?subject=descadastrar>"
+    mensagem.set_content(corpo)
+    if html:
+        mensagem.add_alternative(html, subtype="html")
+        parte_html = mensagem.get_payload()[-1]
+        for cid, caminho in imagens or []:
+            with open(caminho, "rb") as f:
+                parte_html.add_related(f.read(), maintype="image", subtype="png", cid=f"<{cid}>")
+    for caminho in anexos or []:
+        with open(caminho, "rb") as f:
+            mensagem.add_attachment(f.read(), maintype="application", subtype="pdf",
+                                    filename=os.path.basename(caminho))
+
+    try:
+        if cfg["porta"] == 465:
+            servidor = smtplib.SMTP_SSL(cfg["host"], cfg["porta"], timeout=TIMEOUT_SMTP_SEGUNDOS,
+                                        context=ssl.create_default_context())
+        else:
+            servidor = smtplib.SMTP(cfg["host"], cfg["porta"], timeout=TIMEOUT_SMTP_SEGUNDOS)
+            servidor.starttls(context=ssl.create_default_context())
+        with servidor:
+            servidor.login(cfg["usuario"], cfg["senha"])
+            servidor.send_message(mensagem)
+    except smtplib.SMTPAuthenticationError as erro:
+        raise ErroEnvio("O servidor recusou o usuário ou a senha. No Gmail, use uma senha de app.") from erro
+    except smtplib.SMTPRecipientsRefused as erro:
+        raise ErroEnvio("O servidor recusou o endereço do destinatário.") from erro
+    except (smtplib.SMTPException, OSError) as erro:
+        logger.warning("falha ao enviar e-mail: %s", erro)
+        raise ErroEnvio("Não consegui enviar o e-mail. Confira servidor, porta e conexão.") from erro
+    return mensagem["Message-ID"]
 
 
 def desconectar_whatsapp():

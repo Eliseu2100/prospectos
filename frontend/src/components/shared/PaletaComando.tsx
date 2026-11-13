@@ -5,6 +5,7 @@ import {
   BarChart3,
   Building2,
   ListTodo,
+  Mail,
   MapPin,
   Search,
   Settings,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { InstagramIcon } from "@/components/icons/InstagramIcon"
+import { LinkedinIcon } from "@/components/icons/LinkedinIcon"
 import { StatusBadge } from "@/components/leads/StatusBadge"
 import { leadsService } from "@/services/leadsService"
 import { normalizarParaBusca } from "@/lib/nichos"
@@ -23,6 +25,8 @@ const PAGINAS = [
   { rotulo: "Tarefas de hoje", rota: "/tarefas", icone: <ListTodo className="size-4" /> },
   { rotulo: "Leads do Maps", rota: "/leads", icone: <MapPin className="size-4" /> },
   { rotulo: "Leads do Instagram", rota: "/instagram", icone: <InstagramIcon className="size-4" /> },
+  { rotulo: "Prospecção por e-mail", rota: "/email", icone: <Mail className="size-4" /> },
+  { rotulo: "LinkedIn", rota: "/linkedin", icone: <LinkedinIcon className="size-4" /> },
   { rotulo: "Analytics", rota: "/analytics", icone: <BarChart3 className="size-4" /> },
   { rotulo: "Configurações", rota: "/configuracoes", icone: <Settings className="size-4" /> },
 ]

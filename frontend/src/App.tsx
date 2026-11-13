@@ -16,6 +16,8 @@ import { AnalyticsPage } from "@/pages/AnalyticsPage"
 import { InstagramPage } from "@/pages/InstagramPage"
 import { InstagramAnalyticsPage } from "@/pages/InstagramAnalyticsPage"
 import { InstagramArquivadosPage } from "@/pages/InstagramArquivadosPage"
+import { EmailPage } from "@/pages/EmailPage"
+import { LinkedinPage } from "@/pages/LinkedinPage"
 import { ConfiguracoesPage } from "@/pages/ConfiguracoesPage"
 import { DocumentacaoPage } from "@/pages/DocumentacaoPage"
 
@@ -38,6 +40,8 @@ export default function App() {
               <Route path="/instagram" element={<InstagramPage />} />
               <Route path="/instagram/analytics" element={<InstagramAnalyticsPage />} />
               <Route path="/instagram/arquivados" element={<InstagramArquivadosPage />} />
+              <Route path="/email" element={<EmailPage />} />
+              <Route path="/linkedin" element={<LinkedinPage />} />
               <Route path="/configuracoes" element={<ConfiguracoesPage />} />
               <Route path="/documentacao" element={<DocumentacaoPage />} />
             </Routes>

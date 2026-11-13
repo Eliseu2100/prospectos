@@ -530,6 +530,57 @@ def migrar_banco(conexao):
         """
     )
 
+    # Prospecção por e-mail e LinkedIn (assistido). O histórico de conversa usa
+    # mensagens_conversa com canal 'email' / 'linkedin' e lead_ref = id do lead.
+    conexao.execute(
+        """
+        CREATE TABLE IF NOT EXISTS email_leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empresa TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            setor TEXT,
+            cidade TEXT,
+            site_url TEXT,
+            fonte TEXT NOT NULL DEFAULT 'manual',
+            origem_ref TEXT,
+            cnpj TEXT,
+            status TEXT NOT NULL DEFAULT 'novo',
+            follow_ups_enviados INTEGER NOT NULL DEFAULT 0,
+            ultimo_envio_em TEXT,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT
+        )
+        """
+    )
+    conexao.execute(
+        """
+        CREATE TABLE IF NOT EXISTS email_descadastros (
+            email TEXT PRIMARY KEY,
+            motivo TEXT,
+            criado_em TEXT NOT NULL
+        )
+        """
+    )
+    conexao.execute(
+        """
+        CREATE TABLE IF NOT EXISTS linkedin_leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            cargo TEXT,
+            empresa TEXT,
+            perfil_url TEXT UNIQUE,
+            setor TEXT,
+            cidade TEXT,
+            status TEXT NOT NULL DEFAULT 'novo',
+            ultimo_texto TEXT,
+            follow_ups_enviados INTEGER NOT NULL DEFAULT 0,
+            proximo_followup TEXT,
+            criado_em TEXT NOT NULL,
+            atualizado_em TEXT
+        )
+        """
+    )
+
     conexao.execute(
         """
         CREATE TABLE IF NOT EXISTS instagram_posts (

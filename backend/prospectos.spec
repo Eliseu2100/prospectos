@@ -34,6 +34,7 @@ datas = [
     (str(RAIZ / "instagram" / "login.py"), "instagram"),
     (str(RAIZ.parent / "frontend" / "dist"), "frontend_dist"),
     (str(RAIZ / "node" / "node.exe"), "node"),
+    (str(RAIZ / "assets" / "email"), "assets/email"),
 ]
 
 a = Analysis(

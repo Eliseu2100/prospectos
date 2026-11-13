@@ -69,9 +69,11 @@ import processar
 import rotas_analytics
 import rotas_config
 import rotas_conversa
+import rotas_email
 import rotas_envio
 import rotas_instagram
 import rotas_leads
+import rotas_linkedin
 import rotas_piloto
 
 app = Flask(__name__)
@@ -82,6 +84,8 @@ app.register_blueprint(rotas_config.bp)
 app.register_blueprint(rotas_conversa.bp)
 app.register_blueprint(rotas_envio.bp)
 app.register_blueprint(rotas_piloto.bp)
+app.register_blueprint(rotas_email.bp)
+app.register_blueprint(rotas_linkedin.bp)
 
 
 @app.errorhandler(Exception)
