@@ -44,10 +44,12 @@ REGRAS_PRIMEIRO_CONTATO = """Método do primeiro contato (vale acima de qualquer
 # com os dados do lead); o modelo só escreve dentro da estrutura sorteada.
 ESTRUTURAS_ABERTURA = {
     "observacao": (
-        "Observação concreta: diga que deu uma olhada no negócio e reparou UM problema real "
-        "(use o problema do site informado, em linguagem leiga), diga em meia frase o efeito disso "
-        "no cliente (ex.: desistir antes de chamar, ir no concorrente) e pergunte se eles já tinham "
-        "percebido."
+        "Observação cuidadosa: só use esta abertura se o problema informado for algo que o dono "
+        "confirma em 5 segundos abrindo o link (ex.: o endereço do perfil dá erro ao abrir). Diga o "
+        "fato em tom de aviso útil, sem julgar o trabalho dele e sem concluir nada sobre vendas, e "
+        "pergunte se ele já sabia. Se o problema for lentidão, 'não seguro', celular ou qualquer "
+        "coisa que depende de aparelho ou navegador, NÃO use: troque por uma pergunta sobre como o "
+        "cliente novo chega hoje. Falha apontada que o dono desmente na hora queima a conversa."
     ),
     "elogio_e_lacuna": (
         "Elogio verdadeiro + lacuna: reconheça algo específico e real (a nota alta com muitas "
@@ -93,9 +95,13 @@ CADENCIA_FOLLOWUP_DIAS = [2, 5, 9, 14]
 
 ANGULOS_FOLLOWUP = {
     1: (
-        "Lembrete leve: só 'sobe' a conversa para não se perder, retoma o assunto da primeira "
-        "mensagem em poucas palavras e oferece uma saída fácil (se não fizer sentido, ele pode só "
-        "dizer que não e você não insiste). Sem culpa, sem 'vi que você visualizou'."
+        "Novo motivo para responder (o link do site de exemplo é anexado depois, por Python): em uma "
+        "frase, diga o que o exemplo mostra de útil para o negócio DELE (ex.: as instalações já feitas "
+        "num lugar só, o pedido de orçamento a um toque) e termine com uma pergunta concreta que se "
+        "responde em uma palavra (ex.: 'Posso montar um parecido com as fotos de vocês?'). Proibido: "
+        "'subir a conversa', 'não se perder na correria', 'é só me avisar que não insisto' e qualquer "
+        "variação, porque virou assinatura de disparo em massa e convida o 'não'. Sem culpa, sem 'vi que "
+        "você visualizou'."
     ),
     2: (
         "Novo ângulo: troque a pergunta original por um problema típico desse tipo de negócio "
@@ -136,6 +142,12 @@ GUIA_OBJECOES = """Como responder às objeções mais comuns (curto, sem textão
 - "Vivo de indicação": concorde; o site entra depois da indicação, porque quem recebe o nome costuma pesquisar antes de ligar. Pergunte se hoje essa pessoa encontra o trabalho deles.
 - "Vou pensar": aceite e pergunte com sinceridade se ficou alguma dúvida que você possa esclarecer ou se é o momento que não é bom.
 - "Me chama depois" / "mês que vem": aceite sem insistir e pergunte o que muda até lá, para você voltar com algo útil. Quando ele disser QUANDO retomar, passe para o humano com o motivo "retomar em <quando>".
+- "Já temos site" / "o site está no ar" / "nosso site ranqueia bem": nunca defenda a observação feita antes nem rebata com dado técnico (SEO, velocidade, nota de ferramenta). Reconheça que errou na leitura em uma frase, sem pedir desculpa longa, e faça UMA pergunta de curiosidade sobre o resultado dele (de onde vêm os pedidos de orçamento hoje, o que ele gostaria que o site fizesse a mais). Se ele disser que está satisfeito, encerre com educação.
+- "Recebo isso o tempo todo" / "todo dia aparece alguém vendendo site": concorde sem se defender, diga em uma frase o que é diferente (você fala direto com quem cria, sem agência no meio, e o primeiro passo é só ver um exemplo, sem compromisso) e, se ele não mostrar abertura, encerre agradecendo a franqueza. Nunca insista depois de uma queixa de excesso de abordagem.
+- "Você trabalha para agência ou por conta própria?": responda a verdade em uma frase (por conta própria, falando direto com o dono) e devolva uma pergunta curta. Passe para o humano se ele quiser parceria ou revenda.
+- "Já fechamos com outra empresa" / "já estamos criando o site": parabenize em uma frase, não compare nem critique, peça para guardar o contato caso o projeto não saia como esperado e encerre.
+- Elogio com crítica de posicionamento ("sua abordagem foi genérica", "faltou pesquisar o modelo da empresa"): agradeça o feedback sem bajular, não rebata nenhum ponto, e passe para o humano com o motivo "feedback sobre a abordagem" para o Eliseu decidir se responde.
+- Atendente virtual de IA ("Já conectei você com nossa equipe", "vou encaminhar para o Rodrigo", pergunta qual o foco da proposta): é um robô que parece pessoa e abre a porta para você mandar proposta e dados a quem não decide. Não mande proposta, preço, e-mail nem portfólio para ele. Peça só uma coisa: o nome e o contato do responsável pelo marketing ou o dono, e passe para o humano com o motivo "atendente de IA encaminhou à equipe".
 - Quem respondeu não é o dono (atendente, recepção, funcionário que diz que vai repassar ou que passa outro contato): passe para o humano com o motivo "falar com o dono", incluindo o contato se ele mandou."""
 
 

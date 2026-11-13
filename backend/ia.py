@@ -420,6 +420,7 @@ Regras invariáveis (valem para TODA mensagem):
 - Escreva o nome da empresa EXATAMENTE como está no campo Nome (sem corrigir, abreviar ou trocar letras). Se o nome for longo ou cheio de descrições ("Clínica X - Acupuntura e Fisioterapia em Santo André"), use só a parte que é o nome em si ("Clínica X").
 - Nunca cumprimente o nome da empresa como se fosse uma pessoa ("Boa tarde, Fino Bronze!"). Sem nome de pessoa, use "pessoal" ou "equipe da X", ou só a saudação.
 - Fale de RESULTADO para o negócio (agenda cheia, cliente novo que acha pelo Google, mais pedidos), nunca de tecnologia: proibido "código limpo", "engenharia de software", "SEO", "navegação perfeita", "desenvolvimento web", "anos de TI". Se o diferencial do vendedor for técnico, traduza em benefício (ex.: "você fala direto comigo" em vez de "metodologia ágil"). Não prometa prazo no primeiro contato.
+- O dono recebe vários pitches de site por dia e já reclamou disso. Seja o que se diferencia: específico do negócio dele, honesto sobre quem você é (um freelancer que fala direto com ele, sem agência) e nunca com tom de aviso de "problema" sobre algo que ele conhece melhor que você (site dele, resultado dele).
 - Mensagem CURTA de WhatsApp: no máximo 3 frases, cabendo numa tela de celular sem rolar. Dono de pequeno negócio lê entre um cliente e outro; parágrafo longo parece spam e não é respondido.
 - Uma pergunta por mensagem, no máximo. Sem emoji, sem travessão (— ou –), sem listas.
 - Responda APENAS com o texto final da mensagem: sem aspas em volta, sem explicações, sem markdown.
@@ -497,7 +498,11 @@ def _contexto_site(site_status, site_problemas):
             "como a oportunidade perdida. Só diga que o site está 'fora do ar' se o problema informado "
             "for literalmente 'site fora do ar'. Erro HTTP (404, 500 etc.) ou domínio com defeito vira "
             "'o endereço do site que está no perfil do Google dá erro ao abrir', nunca 'fora do ar'. "
-            "Site lento é 'demora muito para carregar'. Cite SOMENTE problemas desta lista e do raio-X "
+            "Lentidão, 'não seguro', celular, falta de descrição no Google, 'feito em construtor "
+            "pronto' e qualquer defeito que o dono possa desmentir em segundos (já aconteceu: o dono "
+            "respondeu 'engano seu, o site está no ar' e outro mostrou que o site dele ranqueia) NÃO "
+            "devem ser afirmados: fale do negócio dele e pergunte como o cliente novo chega, sem apontar "
+            "defeito. Cite SOMENTE problemas desta lista e do raio-X "
             "fornecido: nunca diga que falta telefone, e-mail, endereço, botão de WhatsApp ou foto, "
             "nem opine sobre a qualidade das fotos."
         )
@@ -581,6 +586,8 @@ Orientações desta mensagem:
 - Mais curta que o primeiro contato: 1 a 3 frases, cabe numa tela sem rolar.
 - No máximo UMA pergunta{" (nesta, nenhuma)" if ultimo else ""}. Zero emoji, zero travessão.
 - Nada de se desculpar por "incomodar de novo", cobrar resposta ou falar de preço.
+- Proibido repetir a fórmula "subindo a conversa para não se perder" ou "é só me avisar que não insisto" (vira o 'não' e todos os concorrentes usam). Entre com um motivo novo e específico do negócio dele, e termine com uma pergunta de uma palavra.
+- Não reafirme defeito técnico do site dele. Se o primeiro contato apontou um, mude de assunto para o resultado (pedidos de orçamento, instalações mostradas) em vez de insistir no defeito.
 - Não repita a saudação de bom dia/boa tarde se não couber; um "Oi" basta.
 """
 
@@ -978,7 +985,8 @@ Quando usar cada ação:
 - "combinar_previa": o lead demonstrou interesse e quer VER como ficaria o site dele (aceitou ver uma prévia/ideia/exemplo do site dele, ou pediu isso). O vendedor monta a prévia à noite e envia no dia útil seguinte - nunca na hora. A resposta: confirma com entusiasmo contido que vai preparar uma prévia do site DELE e enviar no dia indicado no contexto (use exatamente essa expressão de dia), e faz UMA pergunta curta para personalizar (ex.: quais serviços quer destacar, se tem logo/fotos ou cores preferidas). Não fale de preço nesta mensagem se ele não perguntou.
 - PREÇO: se o lead perguntar quanto custa e houver valor nas informações da oferta, RESPONDA com esse valor exatamente como está escrito (ex.: "a partir de R$ X"), diga em uma frase o que está incluso e termine com uma pergunta curta que ajude a entender o que ele precisa. Só passe para o humano se não houver valor escrito, se ele pedir orçamento de algo fora do que está descrito, ou se pedir desconto/negociar.
 - "passar_para_humano": o lead quer fechar ou contratar, negocia valor ou pede desconto, quer marcar reunião/ligação, pede portfólio/exemplos de OUTROS clientes, link ou arquivo que não está nas informações da oferta, mandou áudio/imagem/documento que você não consegue ler, fez pergunta técnica ou fora do escopo, está irritado, quem respondeu não é o dono, ou você não tem certeza do que responder. Na dúvida, passe para o humano.
-- "encerrar": o lead disse claramente que não tem interesse, pediu para parar, demonstrou irritação com o contato, ou disse que é engano. A resposta deve ser UMA frase curta e educada de despedida, sem insistir e sem oferecer nada. Se ele só perguntar, sem irritação, como você conseguiu o contato, isso NÃO é encerrar: responda com transparência que o número está no perfil público da empresa no Google Maps e siga a conversa com leveza.
+- Se o lead contestou algo que você ou o vendedor afirmou antes (site no ar, site que ranqueia, unidade de franquia), a resposta certa é reconhecer em uma frase e perguntar sobre o resultado dele, nunca defender nem provar tecnicamente que ele está errado. Se a contestação vier com crítica à abordagem, passe para o humano com o motivo "feedback sobre a abordagem".
+- "encerrar": o lead disse claramente que não tem interesse (inclui "já fechei com outra empresa", "estamos satisfeitos" e queixa de excesso de abordagens), pediu para parar, demonstrou irritação com o contato, ou disse que é engano. A resposta deve ser UMA frase curta e educada de despedida, sem insistir e sem oferecer nada. Se ele só perguntar, sem irritação, como você conseguiu o contato, isso NÃO é encerrar: responda com transparência que o número está no perfil público da empresa no Google Maps e siga a conversa com leveza.
 
 {guia_objecoes}
 
