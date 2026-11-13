@@ -559,6 +559,9 @@ def migrar_banco(conexao):
     for nome_indice, coluna in (("status", "status"), ("setor", "setor"), ("cidade", "cidade"),
                                 ("atualizado", "atualizado_em")):
         conexao.execute(f"CREATE INDEX IF NOT EXISTS idx_email_leads_{nome_indice} ON email_leads({coluna})")
+    # Mesma expressão do ORDER BY da lista (rotas_email.listar_leads): sem isso o SQLite ordena a tabela inteira.
+    conexao.execute("CREATE INDEX IF NOT EXISTS idx_email_leads_ordem "
+                    "ON email_leads(COALESCE(atualizado_em, criado_em) DESC, id DESC)")
     conexao.execute(
         """
         CREATE TABLE IF NOT EXISTS email_descadastros (
