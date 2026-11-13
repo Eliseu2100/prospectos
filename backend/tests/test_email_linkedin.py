@@ -145,21 +145,33 @@ class TestReceita:
 
 
 class TestEnvioDeEmail:
-    def test_envia_com_identificacao_descadastro_e_anexo_so_no_primeiro(self, cliente, enviados, tmp_path, monkeypatch):
+    def test_primeiro_simples_depois_marca_com_pdf(self, cliente, enviados, tmp_path, monkeypatch):
         pdf = tmp_path / "proposta.pdf"
         pdf.write_bytes(b"%PDF-1.4 teste")
         monkeypatch.setattr(rotas_email, "_arquivo_anexo", lambda: str(pdf))
         lead_id = _novo_lead(cliente)
         r1 = cliente.post(f"/api/email/leads/{lead_id}/enviar", json={"assunto": "uma pergunta", "corpo": "Oi, tudo bem?"})
         assert r1.get_json() == {"ok": True, "status": "contatado"}
-        assert enviados[0]["anexos"] == [str(pdf)]
-        assert "descadastrar" in enviados[0]["corpo"] and "descadastrar" in enviados[0]["html"]
+        assert enviados[0]["html"] is None and enviados[0]["anexos"] == []
+        assert "descadastrar" in enviados[0]["corpo"] and "Criação de Sites Premium" in enviados[0]["corpo"]
         cliente.post(f"/api/email/leads/{lead_id}/enviar", json={"assunto": "outra", "corpo": "Segundo e-mail."})
-        assert enviados[1]["anexos"] == []
+        assert enviados[1]["html"] and "descadastrar" in enviados[1]["html"]
+        assert enviados[1]["anexos"] == [str(pdf)]
+        cliente.post(f"/api/email/leads/{lead_id}/enviar", json={"assunto": "terceira", "corpo": "Terceiro."})
+        assert enviados[2]["anexos"] == [str(pdf)]  # o anexo vai em todo e-mail de marca; desligue o interruptor se não quiser
         lead = cliente.get("/api/email/leads").get_json()["leads"][0]
-        assert lead["follow_ups_enviados"] == 1
+        assert lead["follow_ups_enviados"] == 2
         historico = cliente.get(f"/api/email/leads/{lead_id}/historico").get_json()["mensagens"]
-        assert len(historico) == 2 and historico[0]["autor"] == "vendedor"
+        assert len(historico) == 3 and historico[0]["autor"] == "vendedor"
+
+    def test_com_o_interruptor_desligado_o_primeiro_sai_com_marca_e_pdf(self, cliente, enviados, tmp_path, monkeypatch):
+        pdf = tmp_path / "proposta.pdf"
+        pdf.write_bytes(b"%PDF-1.4 teste")
+        monkeypatch.setattr(rotas_email, "_arquivo_anexo", lambda: str(pdf))
+        db.salvar_config("email_primeiro_simples", "0")
+        lead_id = _novo_lead(cliente)
+        cliente.post(f"/api/email/leads/{lead_id}/enviar", json={"assunto": "x", "corpo": "y"})
+        assert enviados[0]["html"] and enviados[0]["anexos"] == [str(pdf)]
 
     def test_respeita_o_limite_diario(self, cliente, enviados):
         db.salvar_config("email_limite_diario", "1")

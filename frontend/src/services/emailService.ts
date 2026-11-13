@@ -15,6 +15,7 @@ export interface ConfigSmtp {
   enviados_hoje: number
   assinatura: string
   anexar_pdf: boolean
+  primeiro_simples: boolean
   anexo_pdf: string
   anexo_pdf_existe: boolean
 }
@@ -29,6 +30,7 @@ export interface SalvarSmtp {
   limite_diario: number
   assinatura: string
   anexar_pdf: boolean
+  primeiro_simples: boolean
 }
 
 export interface LeadEmail {

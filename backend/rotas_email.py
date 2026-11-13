@@ -7,8 +7,9 @@ Regras de negócio:
 - Limite diário configurável (padrão 20, para caixa nova), contado pelos envios de hoje.
 - Todo e-mail sai com identificação e pedido de descadastro (acrescentados aqui, o usuário não
   consegue tirar). Quem pede para sair vai para `email_descadastros` e nunca mais é contatado.
-- O PDF da proposta genérica vai anexado só no PRIMEIRO e-mail para cada lead (e-mail com anexo em
-  todo follow-up derruba a entrega).
+- O primeiro e-mail de cada lead sai em TEXTO SIMPLES (sem logo, banner nem anexo), que é o que cai na caixa
+  de entrada do Gmail em vez de Promoções (`email_primeiro_simples`, ligado por padrão). A partir do segundo e-mail
+  sai o modelo com a identidade da marca e, se ligado, o PDF da proposta anexado uma vez.
 - Histórico em `mensagens_conversa` (canal "email", origem "email", para não contar no limite do WhatsApp).
 """
 
@@ -69,6 +70,13 @@ def _arquivo_anexo():
     return configurado or str(paths.caminho_dados(*ARQUIVO_ANEXO_PADRAO))
 
 
+def _primeiro_simples():
+    """Primeiro e-mail de cada empresa em texto simples (sem logo, banner nem anexo): cai bem mais
+    na caixa de entrada do Gmail do que o e-mail com cara de marketing."""
+    valor = db.obter_config("email_primeiro_simples")
+    return True if valor in (None, "") else str(valor) in ("1", "true", "True")
+
+
 def _anexar_pdf():
     valor = db.obter_config("email_anexar_pdf")
     return True if valor in (None, "") else str(valor) in ("1", "true", "True")
@@ -99,6 +107,7 @@ def obter_config():
         "enviados_hoje": enviados,
         "assinatura": db.obter_config("smtp_assinatura") or "",
         "anexar_pdf": _anexar_pdf(),
+        "primeiro_simples": _primeiro_simples(),
         "anexo_pdf": arquivo,
         "anexo_pdf_existe": os.path.isfile(arquivo),
     }})
@@ -131,6 +140,8 @@ def salvar_config():
     db.salvar_config("smtp_remetente_email", str(dados.get("remetente_email", "")).strip())
     db.salvar_config("email_limite_diario", str(limite))
     db.salvar_config("smtp_assinatura", str(dados.get("assinatura", "")).strip())
+    if "primeiro_simples" in dados:
+        db.salvar_config("email_primeiro_simples", "1" if dados["primeiro_simples"] else "0")
     if "anexar_pdf" in dados:
         db.salvar_config("email_anexar_pdf", "1" if dados["anexar_pdf"] else "0")
     if str(dados.get("anexo_pdf", "")).strip():
@@ -138,8 +149,12 @@ def salvar_config():
     return jsonify({"ok": True})
 
 
-def _montar_e_enviar(para, assunto, corpo, com_anexo):
+def _montar_e_enviar(para, assunto, corpo, primeiro_contato):
     cfg = mensageiros.config_smtp()
+    if primeiro_contato and _primeiro_simples():
+        # texto simples puro: só o texto e uma assinatura curta, sem HTML, imagem nem anexo
+        return mensageiros.enviar_email(para, assunto, email_modelo.texto_simples(corpo, cfg["remetente_email"]))
+    com_anexo = True
     anexos = []
     if com_anexo and _anexar_pdf() and os.path.isfile(_arquivo_anexo()):
         anexos.append(_arquivo_anexo())
@@ -160,7 +175,7 @@ def testar_envio():
         _montar_e_enviar(
             para, "teste do envio do Seriax OS",
             "Este é um e-mail de teste do Seriax OS.\n\nSe você está lendo isto com o cabeçalho e a assinatura "
-            "da marca, o envio está funcionando.", com_anexo=True)
+            "da marca, o envio está funcionando.", primeiro_contato=True)
     except mensageiros.ErroEnvio as excecao:
         return _erro(excecao)
     return jsonify({"ok": True})
@@ -279,7 +294,7 @@ def enviar_email(lead_id):
             "SELECT 1 FROM mensagens_conversa WHERE canal = 'email' AND lead_ref = ? AND autor = 'vendedor' LIMIT 1",
             (str(lead_id),)).fetchone() is not None
         try:
-            id_mensagem = _montar_e_enviar(lead["email"], assunto, corpo, com_anexo=not ja_enviou)
+            id_mensagem = _montar_e_enviar(lead["email"], assunto, corpo, primeiro_contato=not ja_enviou)
         except mensageiros.ErroEnvio as excecao:
             return _erro(excecao)
         agora = _agora()

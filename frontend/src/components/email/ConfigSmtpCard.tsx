@@ -20,6 +20,7 @@ function FormularioSmtp({ smtp }: { smtp: ConfigSmtp }) {
   const [limite, setLimite] = useState(String(smtp.limite_diario || 30))
   const [assinatura, setAssinatura] = useState(smtp.assinatura)
   const [anexarPdf, setAnexarPdf] = useState(smtp.anexar_pdf)
+  const [primeiroSimples, setPrimeiroSimples] = useState(smtp.primeiro_simples)
   const [emailTeste, setEmailTeste] = useState("")
 
   const pronto = smtp.senha_configurada && Boolean(smtp.host) && Boolean(smtp.remetente_email)
@@ -37,6 +38,7 @@ function FormularioSmtp({ smtp }: { smtp: ConfigSmtp }) {
         limite_diario: Number(limite) || 30,
         assinatura,
         anexar_pdf: anexarPdf,
+        primeiro_simples: primeiroSimples,
       },
       { onSuccess: () => setSenha("") }
     )
@@ -127,11 +129,27 @@ function FormularioSmtp({ smtp }: { smtp: ConfigSmtp }) {
         <input
           type="checkbox"
           className="mt-1 size-4 accent-primary"
+          checked={primeiroSimples}
+          onChange={(e) => setPrimeiroSimples(e.target.checked)}
+        />
+        <span>
+          Primeiro e-mail de cada empresa em texto simples
+          <span className="block text-xs text-muted-foreground">
+            Sem logo, banner nem anexo: cai bem mais na caixa de entrada e não em Promoções. O modelo com a marca e o
+            PDF saem a partir do segundo e-mail.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1 size-4 accent-primary"
           checked={anexarPdf}
           onChange={(e) => setAnexarPdf(e.target.checked)}
         />
         <span>
-          Anexar a proposta em PDF no primeiro e-mail de cada empresa
+          Anexar a proposta em PDF nos e-mails com a marca
           <span className="block text-xs text-muted-foreground">
             {smtp.anexo_pdf_existe
               ? `Arquivo: ${smtp.anexo_pdf}`
