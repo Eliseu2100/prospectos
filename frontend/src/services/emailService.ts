@@ -102,12 +102,6 @@ export interface MensagemHistorico {
   enviada_em: string
 }
 
-export interface EmailGerado {
-  assunto: string
-  corpo: string
-  provedor: string
-}
-
 function montarQuery(filtros: FiltrosEmail): string {
   const params = new URLSearchParams()
   if (filtros.status) params.set("status", filtros.status)
@@ -138,8 +132,6 @@ export const emailService = {
     httpClient.post<{ importados: number; ignorados: number }>("/api/email/importar/receita", dados),
 
   adicionarLead: (dados: NovoLeadEmail) => httpClient.post<{ id: number }>("/api/email/leads", dados),
-
-  gerar: (id: number) => httpClient.post<EmailGerado>(`/api/email/leads/${id}/gerar`),
 
   enviar: (id: number, dados: { assunto: string; corpo: string; estilo?: EstiloEmail }) =>
     httpClient.post<{ ok: true; status: StatusEmail }>(`/api/email/leads/${id}/enviar`, dados),

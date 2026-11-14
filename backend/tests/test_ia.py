@@ -51,6 +51,13 @@ def resposta_fixa(texto):
     return lambda system, user, temperatura=None, formato_json=False: texto
 
 
+@pytest.fixture(autouse=True)
+def ordem_fixa_de_teste(monkeypatch):
+    """Estes testes verificam o MECANISMO de fallback, não a ordem de produção (que tem teste próprio
+    em test_ia_modelos.py): fixam Gemini -> Groq -> NVIDIA para não depender da preferência do dia."""
+    monkeypatch.setattr(ia, "ORDEM_PROVEDORES_IA", ["gemini", "groq", "claude", "nvidia"])
+
+
 class TestExecutarComFallback:
     def test_usa_primeiro_provedor_disponivel(self, monkeypatch):
         configurar_provedores(monkeypatch, gemini=resposta_fixa("resposta do gemini"))

@@ -98,13 +98,6 @@ export function useAdicionarLeadEmail() {
   })
 }
 
-export function useGerarEmail() {
-  return useMutation({
-    mutationFn: (id: number) => emailService.gerar(id),
-    onError: (erro: Error) => toast.error(erro.message),
-  })
-}
-
 export function useEnviarEmail() {
   const queryClient = useQueryClient()
   return useMutation({

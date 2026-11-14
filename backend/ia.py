@@ -39,10 +39,9 @@ logger = logging.getLogger(__name__)
 
 # Ordem de preferência dos provedores de IA - se o primeiro falhar/estourar cota,
 # tenta o próximo automaticamente. Cada usuário pode configurar 1, 2 ou os 3.
-# Claude (pago, centavos por dia) primeiro: foi o que mais acertou e o que não oscila - o Gemini grátis
-# trava até o 504, estoura cota e responde 503 (decisão do Eliseu em 13/11/2026). Se o Claude falhar, o
-# Gemini assume, depois Groq e NVIDIA como últimas reservas.
-ORDEM_PROVEDORES_IA = ["claude", "gemini", "groq", "nvidia"]
+# Groq primeiro, depois Gemini, depois Claude (decisão do Eliseu em 14/11/2026). O Claude é pago e o
+# crédito de US$ 5 acabou em um dia: fica como reserva, só entra se os dois gratuitos falharem.
+ORDEM_PROVEDORES_IA = ["groq", "gemini", "claude", "nvidia"]
 
 # Timeout por chamada de IA. Sem ele, um provedor que pendura a conexão travaria
 # a geração pra sempre e o fallback nunca chegaria ao próximo provedor.
@@ -1083,84 +1082,8 @@ def _link_site_modelo():
         return None
 
 
-def _bloco_lead_email(lead):
-    fonte = lead.get("fonte")
-    origem = (
-        "e-mail público publicado no site da empresa" if fonte == "site"
-        else "base aberta da Receita (não se sabe se tem site ou não)" if fonte == "receita"
-        else "informado pelo vendedor"
-    )
-    linhas = [
-        _linha_dado("Empresa", lead.get("empresa")),
-        _linha_dado("Setor", lead.get("setor")),
-        _linha_dado("Cidade", lead.get("cidade")),
-        _linha_dado("Site da empresa", lead.get("site_url")),
-        _linha_dado("Origem do contato", origem),
-    ]
-    return "\n".join(l for l in linhas if l)
-
-
-def _parsear_email_gerado(resposta_bruta):
-    limpa = resposta_bruta.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-    dados = json.loads(limpa)
-    assunto = str(dados.get("assunto", "")).strip().strip('"')[:90]
-    corpo = str(dados.get("corpo", "")).strip()
-    if not assunto or not corpo:
-        raise ValueError("resposta sem assunto ou corpo")
-    return {"assunto": assunto, "corpo": corpo}
-
-
-ANGULOS_EMAIL = {
-    0: ("Primeiro e-mail: apresente-se em meia frase, mostre que olhou o negócio (setor e cidade, ou o site "
-        "se houver) e termine pedindo permissão para mostrar um exemplo de site feito para o ramo dele."),
-    1: ("Segundo e-mail (3 dias depois): NÃO repita o primeiro. Traga um motivo novo e concreto para o ramo "
-        "dele (ex.: o cliente costuma pesquisar o nome da empresa antes de ligar) e inclua o link do exemplo, se "
-        "houver. Pergunta de uma palavra."),
-    2: ("Terceiro e-mail (7 dias depois): uma frase só sobre o que você faria pelo negócio dele e uma pergunta "
-        "curta. Sem cobrar resposta."),
-    3: ("Despedida: avise com leveza que é a última mensagem, que entendeu que agora não é o momento e que o "
-        "contato fica caso mude. Sem pergunta e sem oferta."),
-}
+# O texto do e-mail é escrito pelo Eliseu (14/11/2026): sem geração por IA, para não gastar crédito.
 CADENCIA_EMAIL_DIAS = [3, 7, 14]
-
-
-def montar_prompt_email(lead, follow_ups_enviados=0, mensagem_anterior=None):
-    numero = min(max(int(follow_ups_enviados or 0), 0), max(ANGULOS_EMAIL))
-    link = _link_site_modelo()
-    bloco_link = (f"\nLink do site de exemplo (pode usar só no segundo e-mail em diante): {link}\n"
-                  if link and numero >= 1 else "")
-    anterior = (f'\nO que você já enviou (não repita argumento nem frases):\n"""{mensagem_anterior}"""\n'
-                if mensagem_anterior else "")
-    return f"""Escreva UM e-mail de prospecção para a empresa abaixo. Responda um único objeto JSON válido com as chaves "assunto" e "corpo", sem markdown.
-
-{REGRAS_COPY_FRIA}
-
-Formato do e-mail:
-- Assunto: até 6 palavras, em minúsculas naturais, que parece mensagem de uma pessoa (ex.: "uma pergunta sobre a empresa"). Nada de clique fácil, caixa alta ou "oportunidade".
-- Corpo: no máximo {MAX_PALAVRAS_EMAIL} palavras, texto simples, 2 a 4 frases curtas. Comece direto, sem "Prezado" nem "Espero que esteja bem". Não escreva assinatura nem pedido de descadastro: o sistema acrescenta.
-
-Ângulo deste e-mail:
-{ANGULOS_EMAIL[numero]}
-{anterior}{bloco_link}
-Dados da empresa:
-{_bloco_lead_email(lead)}
-{abordagem.bloco_dor_do_nicho(None, lead.get("setor"))}{_bloco_perfil_vendedor()}"""
-
-
-def gerar_email_com_fallback(lead, follow_ups_enviados=0, mensagem_anterior=None):
-    """Retorna ({assunto, corpo}, provedor, avisos). Levanta RuntimeError com mensagem amigável."""
-    try:
-        return executar_com_fallback(
-            montar_system_copywriter("E-mail"),
-            montar_prompt_email(lead, follow_ups_enviados, mensagem_anterior),
-            parser=_parsear_email_gerado, descricao_log=f"gerar e-mail {lead.get('empresa')}",
-            formato_json=True,
-        )
-    except NenhumProvedorDisponivel as excecao:
-        if excecao.erro_final is None:
-            raise RuntimeError("Nenhuma chave de IA configurada. Configure em Configurações.")
-        raise RuntimeError(
-            f"Todos os provedores de IA falharam agora. Último erro: {traduzir_erro_ia(excecao.erro_final)}")
 
 
 TIPOS_LINKEDIN = {

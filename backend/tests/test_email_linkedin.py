@@ -220,12 +220,9 @@ class TestEnvioDeEmail:
         lead_id = _novo_lead(cliente)
         assert cliente.post(f"/api/email/leads/{lead_id}/enviar", json={"assunto": "", "corpo": "x"}).status_code == 400
 
-    def test_gerar_usa_a_ia(self, cliente, monkeypatch):
-        monkeypatch.setattr(ia, "gerar_email_com_fallback", lambda lead, n, anterior: (
-            {"assunto": "uma pergunta", "corpo": "Oi"}, "claude", []))
+    def test_nao_existe_geracao_de_texto_por_ia(self, cliente):
         lead_id = _novo_lead(cliente)
-        corpo = cliente.post(f"/api/email/leads/{lead_id}/gerar").get_json()
-        assert corpo == {"assunto": "uma pergunta", "corpo": "Oi", "provedor": "claude"}
+        assert cliente.post(f"/api/email/leads/{lead_id}/gerar").status_code in (404, 405)
 
     def test_senha_smtp_vai_para_o_cofre(self, cliente, banco):
         r = cliente.post("/api/email/config", json={"host": "smtp.x.com", "porta": 587, "usuario": "eu@x.com",
@@ -247,17 +244,6 @@ class TestModeloVisual:
 
 
 class TestPromptsDeIA:
-    def test_email_proibe_defeito_de_site_e_estatistica_inventada(self):
-        prompt = ia.montar_prompt_email({"empresa": "X", "setor": "energia solar", "fonte": "receita"})
-        assert "NUNCA afirme defeito do site" in prompt and "NUNCA invente estatística" in prompt
-        assert "não se sabe se tem site" in prompt
-
-    def test_link_do_exemplo_so_a_partir_do_segundo(self, banco):
-        db.salvar_config("site_modelo_atual", '{"link": "https://exemplo.netlify.app"}')
-        lead = {"empresa": "X", "setor": "obras", "fonte": "site"}
-        assert "exemplo.netlify.app" not in ia.montar_prompt_email(lead, 0)
-        assert "exemplo.netlify.app" in ia.montar_prompt_email(lead, 1)
-
     def test_nota_de_conexao_nao_passa_de_300(self, monkeypatch):
         monkeypatch.setattr(ia, "executar_com_fallback", lambda *a, **k: ("palavra " * 80, "gemini", []))
         texto, _, _ = ia.gerar_texto_linkedin_com_fallback({"nome": "Ana"}, "conexao")

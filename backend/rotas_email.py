@@ -272,26 +272,6 @@ def _obter_lead(conexao, lead_id):
     return dict(linha) if linha else None
 
 
-@bp.route("/api/email/leads/<int:lead_id>/gerar", methods=["POST"])
-def gerar_email(lead_id):
-    conexao = db.conectar()
-    try:
-        lead = _obter_lead(conexao, lead_id)
-        if not lead:
-            return _erro("Lead não encontrado.", 404)
-        anterior = conexao.execute(
-            "SELECT texto FROM mensagens_conversa WHERE canal = 'email' AND lead_ref = ? AND autor = 'vendedor' "
-            "ORDER BY enviada_em DESC LIMIT 1", (str(lead_id),)).fetchone()
-    finally:
-        conexao.close()
-    try:
-        resultado, provedor, _ = ia.gerar_email_com_fallback(
-            lead, lead["follow_ups_enviados"] if anterior else 0, anterior[0] if anterior else None)
-    except RuntimeError as excecao:
-        return _erro(excecao, 503)
-    return jsonify({"assunto": resultado["assunto"], "corpo": resultado["corpo"], "provedor": provedor})
-
-
 @bp.route("/api/email/leads/<int:lead_id>/enviar", methods=["POST"])
 def enviar_email(lead_id):
     dados = request.json or {}
