@@ -128,41 +128,32 @@ def _configurar(monkeypatch, geradores):
         monkeypatch.setitem(ia.GERADORES, nome, funcao)
 
 
-def test_ordem_e_groq_gemini_claude():
-    assert ia.ORDEM_PROVEDORES_IA[:3] == ["groq", "gemini", "claude"]
+def test_ordem_e_claude_gemini_groq():
+    assert ia.ORDEM_PROVEDORES_IA[:3] == ["claude", "gemini", "groq"]
 
 
-def test_groq_responde_primeiro_e_os_pagos_nem_sao_chamados(monkeypatch):
+def _gerador(chamados, nome, texto=None, codigo=529):
+    def gerar(*a, **k):
+        chamados.append(nome)
+        if texto is None:
+            raise ErroApi(codigo, "indisponivel")
+        return texto
+    return gerar
+
+
+def test_claude_responde_primeiro_e_os_outros_nem_sao_chamados(monkeypatch):
     chamados = []
-
-    def faz(nome, texto=None):
-        def gerar(*a, **k):
-            chamados.append(nome)
-            if texto is None:
-                raise ErroApi(429, "quota exceeded")
-            return texto
-        return gerar
-
-    _configurar(monkeypatch, {"groq": faz("groq", "resposta do groq"), "gemini": faz("gemini"),
-                              "claude": faz("claude")})
-    resultado, provedor, _ = ia.executar_com_fallback("s", "u")
-    assert (resultado, provedor) == ("resposta do groq", "groq")
-    assert chamados == ["groq"]  # o Claude (pago) só entra se Groq e Gemini falharem
-
-
-def test_claude_so_entra_depois_de_groq_e_gemini(monkeypatch):
-    chamados = []
-
-    def faz(nome, texto=None):
-        def gerar(*a, **k):
-            chamados.append(nome)
-            if texto is None:
-                raise ErroApi(529, "overloaded")
-            return texto
-        return gerar
-
-    _configurar(monkeypatch, {"groq": faz("groq"), "gemini": faz("gemini"),
-                              "claude": faz("claude", "resposta do claude")})
+    _configurar(monkeypatch, {"claude": _gerador(chamados, "claude", "resposta do claude"),
+                              "gemini": _gerador(chamados, "gemini"), "groq": _gerador(chamados, "groq")})
     resultado, provedor, _ = ia.executar_com_fallback("s", "u")
     assert (resultado, provedor) == ("resposta do claude", "claude")
-    assert chamados == ["groq", "gemini", "claude"]
+    assert chamados == ["claude"]
+
+
+def test_gemini_assume_quando_o_claude_falha_e_groq_vem_depois(monkeypatch):
+    chamados = []
+    _configurar(monkeypatch, {"claude": _gerador(chamados, "claude"), "gemini": _gerador(chamados, "gemini"),
+                              "groq": _gerador(chamados, "groq", "resposta do groq")})
+    resultado, provedor, _ = ia.executar_com_fallback("s", "u")
+    assert (resultado, provedor) == ("resposta do groq", "groq")
+    assert chamados == ["claude", "gemini", "groq"]

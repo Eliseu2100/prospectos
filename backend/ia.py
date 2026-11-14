@@ -39,9 +39,10 @@ logger = logging.getLogger(__name__)
 
 # Ordem de preferência dos provedores de IA - se o primeiro falhar/estourar cota,
 # tenta o próximo automaticamente. Cada usuário pode configurar 1, 2 ou os 3.
-# Groq primeiro, depois Gemini, depois Claude (decisão do Eliseu em 14/11/2026). O Claude é pago e o
-# crédito de US$ 5 acabou em um dia: fica como reserva, só entra se os dois gratuitos falharem.
-ORDEM_PROVEDORES_IA = ["groq", "gemini", "claude", "nvidia"]
+# Claude primeiro (decisão do Eliseu em 14/11/2026, confirmada): o dia inteiro de uso real custou ~US$ 0,02
+# (Console Anthropic, 13/11), e o Gemini grátis trava até o 504, estoura cota e responde 503. Se o Claude
+# falhar, Gemini, Groq e NVIDIA assumem nessa ordem.
+ORDEM_PROVEDORES_IA = ["claude", "gemini", "groq", "nvidia"]
 
 # Timeout por chamada de IA. Sem ele, um provedor que pendura a conexão travaria
 # a geração pra sempre e o fallback nunca chegaria ao próximo provedor.
