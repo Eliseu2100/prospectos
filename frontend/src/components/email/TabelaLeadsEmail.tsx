@@ -32,7 +32,7 @@ export function TabelaLeadsEmail({ leads, onEscrever, onHistorico, onMudarStatus
             <th className="px-4 py-3 font-medium">Fonte</th>
             <th className="px-4 py-3 font-medium">Status</th>
             <th className="px-4 py-3 font-medium">Último envio</th>
-            <th className="px-4 py-3 text-right font-medium">Ações</th>
+            <th className="sticky right-0 bg-card px-4 py-3 text-right font-medium shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.25)]">Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -50,8 +50,16 @@ export function TabelaLeadsEmail({ leads, onEscrever, onHistorico, onMudarStatus
                     {lead.email}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{lead.setor ?? "—"}</td>
-                <td className="px-4 py-3 text-muted-foreground">{lead.cidade ?? "—"}</td>
+                <td className="max-w-[160px] px-4 py-3 text-muted-foreground">
+                  <span className="block truncate" title={lead.setor ?? undefined}>
+                    {lead.setor ?? "—"}
+                  </span>
+                </td>
+                <td className="max-w-[160px] px-4 py-3 text-muted-foreground">
+                  <span className="block truncate" title={lead.cidade ?? undefined}>
+                    {lead.cidade ?? "—"}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{ROTULO_FONTE_EMAIL[lead.fonte]}</td>
                 <td className="px-4 py-3">
                   <Select value={lead.status} onValueChange={(v) => onMudarStatus(lead, v as StatusEmail)}>
@@ -75,7 +83,7 @@ export function TabelaLeadsEmail({ leads, onEscrever, onHistorico, onMudarStatus
                     <span className="ml-1 text-xs">· {lead.follow_ups_enviados} follow-up(s)</span>
                   )}
                 </td>
-                <td className="px-4 py-3">
+                <td className="sticky right-0 bg-card px-4 py-3 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.25)]">
                   <div className="flex justify-end gap-1.5">
                     <Button
                       size="sm"

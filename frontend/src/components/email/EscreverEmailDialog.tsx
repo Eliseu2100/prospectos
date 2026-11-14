@@ -17,7 +17,7 @@ import { ROTULO_ESTILO_EMAIL, type EstiloEmail, type LeadEmail } from "@/service
 
 // Troca {empresa}, {setor} e {cidade} da mensagem padrão pelos dados do lead. Sem dado, a variável some.
 function preencher(modelo: string, lead: LeadEmail) {
-  return modelo
+  return (modelo ?? "")
     .replace(/\{empresa\}/gi, lead.empresa ?? "")
     .replace(/\{setor\}/gi, lead.setor ?? "")
     .replace(/\{cidade\}/gi, lead.cidade ?? "")
@@ -113,8 +113,8 @@ export function EscreverEmailDialog({ lead, onFechar }: { lead: LeadEmail | null
             key={lead.id}
             lead={lead}
             onFechar={onFechar}
-            modeloAssunto={config.smtp.modelo_assunto}
-            modeloCorpo={config.smtp.modelo_corpo}
+            modeloAssunto={config.smtp.modelo_assunto ?? ""}
+            modeloCorpo={config.smtp.modelo_corpo ?? ""}
           />
         )}
       </DialogContent>
