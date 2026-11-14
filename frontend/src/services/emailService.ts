@@ -14,6 +14,8 @@ export interface ConfigSmtp {
   limite_diario: number
   enviados_hoje: number
   assinatura: string
+  modelo_assunto: string
+  modelo_corpo: string
   anexar_pdf: boolean
   primeiro_simples: boolean
   anexo_pdf: string
@@ -37,6 +39,8 @@ export interface SalvarSmtp {
   remetente_email: string
   limite_diario: number
   assinatura: string
+  modelo_assunto?: string
+  modelo_corpo?: string
   anexar_pdf: boolean
   primeiro_simples: boolean
 }

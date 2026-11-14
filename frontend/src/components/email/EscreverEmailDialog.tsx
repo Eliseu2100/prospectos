@@ -12,13 +12,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { useEnviarEmail } from "@/hooks/useEmail"
+import { useConfigEmail, useEnviarEmail } from "@/hooks/useEmail"
 import { ROTULO_ESTILO_EMAIL, type EstiloEmail, type LeadEmail } from "@/services/emailService"
 
-function ConteudoEscrever({ lead, onFechar }: { lead: LeadEmail; onFechar: () => void }) {
+// Troca {empresa}, {setor} e {cidade} da mensagem padrão pelos dados do lead. Sem dado, a variável some.
+function preencher(modelo: string, lead: LeadEmail) {
+  return modelo
+    .replace(/\{empresa\}/gi, lead.empresa ?? "")
+    .replace(/\{setor\}/gi, lead.setor ?? "")
+    .replace(/\{cidade\}/gi, lead.cidade ?? "")
+}
+
+function ConteudoEscrever({
+  lead,
+  onFechar,
+  modeloAssunto,
+  modeloCorpo,
+}: {
+  lead: LeadEmail
+  onFechar: () => void
+  modeloAssunto: string
+  modeloCorpo: string
+}) {
   const enviar = useEnviarEmail()
-  const [assunto, setAssunto] = useState("")
-  const [corpo, setCorpo] = useState("")
+  const [assunto, setAssunto] = useState(() => preencher(modeloAssunto, lead))
+  const [corpo, setCorpo] = useState(() => preencher(modeloCorpo, lead))
   // primeiro contato: texto simples; quem já recebeu algo: marca com o PDF (dá para trocar a cada envio)
   const [estilo, setEstilo] = useState<EstiloEmail>(lead.ultimo_envio_em ? "marca_pdf" : "simples")
   function aoEnviar() {
@@ -86,10 +104,19 @@ function ConteudoEscrever({ lead, onFechar }: { lead: LeadEmail; onFechar: () =>
 }
 
 export function EscreverEmailDialog({ lead, onFechar }: { lead: LeadEmail | null; onFechar: () => void }) {
+  const { data: config } = useConfigEmail()
   return (
     <Dialog open={lead !== null} onOpenChange={(v) => !v && onFechar()}>
       <DialogContent className="sm:max-w-xl">
-        {lead && <ConteudoEscrever key={lead.id} lead={lead} onFechar={onFechar} />}
+        {lead && config && (
+          <ConteudoEscrever
+            key={lead.id}
+            lead={lead}
+            onFechar={onFechar}
+            modeloAssunto={config.smtp.modelo_assunto}
+            modeloCorpo={config.smtp.modelo_corpo}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )

@@ -224,6 +224,18 @@ class TestEnvioDeEmail:
         lead_id = _novo_lead(cliente)
         assert cliente.post(f"/api/email/leads/{lead_id}/gerar").status_code in (404, 405)
 
+    def test_mensagem_padrao_e_salva_e_devolvida(self, cliente):
+        base = {"host": "smtp.x.com", "porta": 587, "usuario": "eu@x.com", "limite_diario": 15}
+        r = cliente.post("/api/email/config", json={**base, "modelo_assunto": "uma pergunta sobre a {empresa}",
+                                                     "modelo_corpo": "Oi, vi a {empresa} em {cidade}."})
+        assert r.status_code == 200
+        config = cliente.get("/api/email/config").get_json()["smtp"]
+        assert config["modelo_assunto"] == "uma pergunta sobre a {empresa}"
+        assert config["modelo_corpo"] == "Oi, vi a {empresa} em {cidade}."
+        # salvar de novo sem os campos não apaga o texto
+        cliente.post("/api/email/config", json=base)
+        assert cliente.get("/api/email/config").get_json()["smtp"]["modelo_corpo"].startswith("Oi, vi")
+
     def test_senha_smtp_vai_para_o_cofre(self, cliente, banco):
         r = cliente.post("/api/email/config", json={"host": "smtp.x.com", "porta": 587, "usuario": "eu@x.com",
                                                       "senha": "segredo123", "limite_diario": 15})

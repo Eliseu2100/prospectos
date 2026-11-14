@@ -106,6 +106,8 @@ def obter_config():
         "limite_diario": _limite_diario(),
         "enviados_hoje": enviados,
         "assinatura": db.obter_config("smtp_assinatura") or "",
+        "modelo_assunto": db.obter_config("email_modelo_assunto") or "",
+        "modelo_corpo": db.obter_config("email_modelo_corpo") or "",
         "anexar_pdf": _anexar_pdf(),
         "primeiro_simples": _primeiro_simples(),
         "anexo_pdf": arquivo,
@@ -140,6 +142,11 @@ def salvar_config():
     db.salvar_config("smtp_remetente_email", str(dados.get("remetente_email", "")).strip())
     db.salvar_config("email_limite_diario", str(limite))
     db.salvar_config("smtp_assinatura", str(dados.get("assinatura", "")).strip())
+    # mensagem padrão escrita pelo Eliseu; {empresa}, {setor} e {cidade} são trocados na hora de escrever
+    if "modelo_assunto" in dados:
+        db.salvar_config("email_modelo_assunto", str(dados["modelo_assunto"]).strip()[:200])
+    if "modelo_corpo" in dados:
+        db.salvar_config("email_modelo_corpo", str(dados["modelo_corpo"]).strip()[:5000])
     if "primeiro_simples" in dados:
         db.salvar_config("email_primeiro_simples", "1" if dados["primeiro_simples"] else "0")
     if "anexar_pdf" in dados:

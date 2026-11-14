@@ -19,6 +19,8 @@ function FormularioSmtp({ smtp }: { smtp: ConfigSmtp }) {
   const [remetenteEmail, setRemetenteEmail] = useState(smtp.remetente_email)
   const [limite, setLimite] = useState(String(smtp.limite_diario || 30))
   const [assinatura, setAssinatura] = useState(smtp.assinatura)
+  const [modeloAssunto, setModeloAssunto] = useState(smtp.modelo_assunto)
+  const [modeloCorpo, setModeloCorpo] = useState(smtp.modelo_corpo)
   const [anexarPdf, setAnexarPdf] = useState(smtp.anexar_pdf)
   const [primeiroSimples, setPrimeiroSimples] = useState(smtp.primeiro_simples)
   const [emailTeste, setEmailTeste] = useState("")
@@ -38,6 +40,8 @@ function FormularioSmtp({ smtp }: { smtp: ConfigSmtp }) {
         remetente_email: remetenteEmail.trim(),
         limite_diario: Number(limite) || 30,
         assinatura,
+        modelo_assunto: modeloAssunto,
+        modelo_corpo: modeloCorpo,
         anexar_pdf: anexarPdf,
         primeiro_simples: primeiroSimples,
       },
@@ -123,6 +127,27 @@ function FormularioSmtp({ smtp }: { smtp: ConfigSmtp }) {
         />
         <p className="text-xs text-muted-foreground">
           O e-mail sai com o logo no topo, a assinatura da marca (nome, WhatsApp e e-mail) e o pedido de descadastro.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="smtp-modelo-assunto">Mensagem padrão (você escreve, sem IA)</Label>
+        <Input
+          id="smtp-modelo-assunto"
+          value={modeloAssunto}
+          onChange={(e) => setModeloAssunto(e.target.value)}
+          placeholder="Assunto. Ex.: uma pergunta sobre a {empresa}"
+        />
+        <Textarea
+          id="smtp-modelo-corpo"
+          rows={6}
+          value={modeloCorpo}
+          onChange={(e) => setModeloCorpo(e.target.value)}
+          placeholder="Texto do e-mail. Use {empresa}, {setor} e {cidade}: o sistema troca pelos dados de cada empresa."
+          aria-label="Texto da mensagem padrão"
+        />
+        <p className="text-xs text-muted-foreground">
+          Ao clicar em Escrever, este texto já vem preenchido com os dados da empresa e você ajusta antes de enviar.
         </p>
       </div>
 
