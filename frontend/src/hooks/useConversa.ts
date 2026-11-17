@@ -81,5 +81,22 @@ export function useConversaMutations(canal: string, leadRef: string) {
     onError: (erro: Error) => toast.error(erro.message),
   })
 
-  return { adicionarMensagem, removerMensagem, analisar }
+  const gerarProposta = useMutation({
+    mutationFn: () => conversaService.gerarProposta(canal, leadRef),
+    onSuccess: () => {
+      toast.success("Proposta comercial gerada com IA.")
+    },
+    onError: (erro: Error) => toast.error(erro.message),
+  })
+
+  const salvarFicha = useMutation({
+    mutationFn: (resumo: string) => conversaService.salvarFicha(canal, leadRef, resumo),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead", leadRef] })
+      toast.success("Resumo registrado automaticamente na ficha do lead.")
+    },
+    onError: (erro: Error) => toast.error(erro.message),
+  })
+
+  return { adicionarMensagem, removerMensagem, analisar, gerarProposta, salvarFicha }
 }

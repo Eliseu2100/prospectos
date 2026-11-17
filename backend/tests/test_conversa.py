@@ -454,3 +454,53 @@ class TestRotaAnalisar:
         resposta = cliente.post("/api/conversa/maps/place-1/analisar")
         assert resposta.status_code == 500
         assert "Configurações" in resposta.get_json()["erro"]
+
+    def test_salvar_resumo_na_ficha_do_lead(self, cliente):
+        criar_lead()
+        resposta = cliente.post(
+            "/api/conversa/maps/place-1/salvar-ficha",
+            json={"resumo": "Falei com o dono Carlos, quer destacar galeria de obras."},
+        )
+        assert resposta.status_code == 200
+        assert "Carlos" in resposta.get_json()["observacoes"]
+
+    def test_gerar_proposta_cpq_com_ia(self, cliente, monkeypatch):
+        criar_lead()
+        monkeypatch.setattr(
+            ia,
+            "gerar_proposta_comercial_com_fallback",
+            lambda lead, msgs, info=None: (
+                {
+                    "pacote_recomendado": "Landing Page Express",
+                    "valor_proposto": "R$ 300 + R$ 50/mês",
+                    "prazo_entrega": "5 dias úteis",
+                    "itens_inclusos": ["Galeria de fotos", "Botão de WhatsApp"],
+                    "mensagem_whatsapp": "Consigo montar sua página por R$ 300 + R$ 50/mês.",
+                    "documento_proposta": "Proposta completa Estética Vitá",
+                },
+                "claude",
+                [],
+            ),
+        )
+        dados = cliente.post("/api/conversa/maps/place-1/proposta").get_json()
+        assert dados["pacote_recomendado"] == "Landing Page Express"
+        assert dados["provedor"] == "claude"
+
+    def test_copiloto_analytics(self, cliente, monkeypatch):
+        criar_lead()
+        monkeypatch.setattr(
+            ia,
+            "consultar_copiloto_crm_com_fallback",
+            lambda pergunta, ctx: (
+                {
+                    "resposta": "Priorize a Estética Vitá que tem nota 5.0.",
+                    "acoes_recomendadas": ["Mandar 1º contato para Estética Vitá"],
+                    "leads_destaque": [{"place_id": "place-1", "nome": "Estética Vitá", "motivo": "Nota 5.0"}],
+                },
+                "claude",
+                [],
+            ),
+        )
+        dados = cliente.post("/api/analytics/copiloto", json={"pergunta": "Quem abordar hoje?"}).get_json()
+        assert "Estética Vitá" in dados["resposta"]
+        assert dados["leads_destaque"][0]["place_id"] == "place-1"

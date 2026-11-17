@@ -22,14 +22,27 @@ export interface MensagemConversa {
 
 export interface AnaliseConversa {
   estagio: EstagioNegociacao
+  chance_fechamento?: number | null
   leitura: string
   objetivo: string
   resposta_sugerida: string
   evitar: string[]
+  resumo_ficha?: string | null
   provedor?: string | null
   avisos?: string[]
   mensagens_consideradas?: number
   criada_em?: string
+}
+
+export interface PropostaComercial {
+  pacote_recomendado: string
+  valor_proposto: string
+  prazo_entrega: string
+  itens_inclusos: string[]
+  mensagem_whatsapp: string
+  documento_proposta: string
+  provedor?: string | null
+  avisos?: string[]
 }
 
 export interface ConversaResposta {

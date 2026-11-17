@@ -48,7 +48,8 @@ export function ConversaPage() {
   const devolver = useDevolverAoPiloto()
   const capturaAtiva = Boolean(captura?.ativa) || whatsappConectado
   const { data, isLoading } = useConversa(CANAL, placeId, capturaAtiva)
-  const { adicionarMensagem, removerMensagem, analisar } = useConversaMutations(CANAL, placeId)
+  const { adicionarMensagem, removerMensagem, analisar, gerarProposta, salvarFicha } =
+    useConversaMutations(CANAL, placeId)
   useEventosDoCockpit(CANAL, placeId)
 
   const { copiado, copiar } = useClipboard()
@@ -252,9 +253,14 @@ export function ConversaPage() {
           <aside className="min-h-0 overflow-hidden rounded-2xl bg-card">
             <AnaliseConversaCard
               analise={data?.analise ?? null}
+              proposta={gerarProposta.data ?? null}
               analisando={analisar.isPending}
+              gerandoProposta={gerarProposta.isPending}
+              salvandoFicha={salvarFicha.isPending}
               temMensagens={mensagens.length > 0}
               onAnalisar={() => analisar.mutate()}
+              onGerarProposta={() => gerarProposta.mutate()}
+              onSalvarFicha={(resumo) => salvarFicha.mutate(resumo)}
               onUsarResposta={usarResposta}
             />
           </aside>

@@ -770,10 +770,17 @@ def migrar_banco(conexao):
             evitar TEXT,
             provedor TEXT,
             mensagens_consideradas INTEGER NOT NULL DEFAULT 0,
-            criada_em TEXT NOT NULL
+            criada_em TEXT NOT NULL,
+            chance_fechamento INTEGER,
+            resumo_ficha TEXT
         )
         """
     )
+    colunas_analise = {linha[1] for linha in conexao.execute("PRAGMA table_info(analises_conversa)")}
+    if "chance_fechamento" not in colunas_analise:
+        conexao.execute("ALTER TABLE analises_conversa ADD COLUMN chance_fechamento INTEGER")
+    if "resumo_ficha" not in colunas_analise:
+        conexao.execute("ALTER TABLE analises_conversa ADD COLUMN resumo_ficha TEXT")
     conexao.execute(
         "UPDATE leads SET piloto_status = 'encerrado' "
         "WHERE status IN ('fechou', 'recusou', 'ignorado') AND piloto_status = 'automatico'"

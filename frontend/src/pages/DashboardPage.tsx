@@ -1,6 +1,7 @@
 import { BarChart3, ListTodo, MapPin, Search, Zap } from "lucide-react"
 import { Link } from "react-router-dom"
 import { InstagramIcon } from "@/components/icons/InstagramIcon"
+import { CopilotoVendasCard } from "@/components/dashboard/CopilotoVendasCard"
 import { VisaoGeralCombinada } from "@/components/dashboard/VisaoGeralCombinada"
 import { FunilConversaoCombinado } from "@/components/dashboard/FunilConversaoCombinado"
 import { BreakdownNichoCombinado } from "@/components/dashboard/BreakdownNichoCombinado"
@@ -30,6 +31,8 @@ export function DashboardPage() {
             Nova busca
           </span>
         </Link>
+
+        <CopilotoVendasCard />
 
         <VisaoGeralCombinada />
 

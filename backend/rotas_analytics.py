@@ -436,3 +436,101 @@ def follow_ups_hoje():
 
     combinados = sorted(leads_maps + leads_instagram, key=lambda l: l["proximo_followup"])
     return jsonify({"leads": combinados})
+
+
+def _montar_contexto_copiloto(conexao):
+    """Monta um retrato compacto e real do banco para o Copiloto Comercial IA."""
+    from rotas_leads import SQL_SCORE
+
+    por_status = {
+        linha["status"]: linha["c"]
+        for linha in conexao.execute("SELECT status, COUNT(*) c FROM leads GROUP BY status").fetchall()
+    }
+    em_conversa = conexao.execute(
+        """
+        SELECT l.place_id, l.nome, l.cidade, l.nicho, l.nota, l.num_avaliacoes, l.piloto_status, l.tags,
+               (SELECT m.texto FROM mensagens_conversa m
+                 WHERE m.canal = 'maps' AND m.lead_ref = l.place_id AND m.autor = 'lead' AND m.automatica = 0
+                 ORDER BY m.enviada_em DESC, m.id DESC LIMIT 1) AS ultima_fala_lead
+        FROM leads l
+        WHERE l.status = 'respondeu'
+        ORDER BY l.atualizado_em DESC LIMIT 12
+        """
+    ).fetchall()
+
+    novos_quentes = conexao.execute(
+        f"""
+        SELECT place_id, nome, cidade, nicho, nota, num_avaliacoes, site_status
+        FROM leads
+        WHERE status = 'novo' AND telefone IS NOT NULL AND telefone != ''
+        ORDER BY {SQL_SCORE} DESC, nota DESC LIMIT 8
+        """
+    ).fetchall()
+
+    por_cidade = conexao.execute(
+        """
+        SELECT COALESCE(cidade, 'Sem cidade') AS cid,
+               COUNT(*) AS total,
+               SUM(CASE WHEN status = 'respondeu' OR status = 'fechou' THEN 1 ELSE 0 END) AS engajados,
+               SUM(CASE WHEN status = 'recusou' THEN 1 ELSE 0 END) AS recusas
+        FROM leads
+        WHERE status != 'novo'
+        GROUP BY cid ORDER BY total DESC LIMIT 8
+        """
+    ).fetchall()
+
+    linhas = [
+        f"Contagem por status no Maps: {por_status}",
+        "\nLeads que RESPONDERAM (em negociação ativa):",
+    ]
+    for l in em_conversa:
+        linhas.append(
+            f"- place_id={l['place_id']} | {l['nome']} ({l['cidade'] or ''}, nota {l['nota']}) "
+            f"| modo={l['piloto_status']} | tags={l['tags'] or '-'} "
+            f"| última fala do lead: \"{(l['ultima_fala_lead'] or '')[:140]}\""
+        )
+    if not em_conversa:
+        linhas.append("- (nenhum lead em status 'respondeu' no momento)")
+
+    linhas.append("\nTop leads NOVOS prontos para abordar (maior score):")
+    for l in novos_quentes:
+        linhas.append(
+            f"- place_id={l['place_id']} | {l['nome']} ({l['cidade'] or ''}) | "
+            f"nota {l['nota']} ({l['num_avaliacoes']} avaliações) | {l['site_status']}"
+        )
+
+    linhas.append("\nDesempenho por cidade (leads já abordados):")
+    for c in por_cidade:
+        linhas.append(f"- {c['cid']}: {c['total']} abordados, {c['engajados']} responderam/fecharam, {c['recusas']} recusaram")
+
+    return "\n".join(linhas)
+
+
+@bp.route("/api/analytics/copiloto", methods=["POST"])
+def consultar_copiloto():
+    """Consultas Inteligentes do CRM (inspirado no Estúdio IA da Ploomes):
+    responde perguntas sobre o funil, conversas ativas e prioridades do dia."""
+    import ia
+
+    pergunta = str((request.json or {}).get("pergunta") or "").strip()
+    if not pergunta:
+        return jsonify({"erro": "escreva uma pergunta para o copiloto"}), 400
+    if len(pergunta) > 500:
+        return jsonify({"erro": "pergunta muito longa (máximo 500 caracteres)"}), 400
+
+    conexao = db.conectar()
+    try:
+        contexto = _montar_contexto_copiloto(conexao) if db.CAMINHO_BANCO.exists() else "Banco vazio."
+    finally:
+        conexao.close()
+
+    try:
+        resultado, provedor, avisos = ia.consultar_copiloto_crm_com_fallback(pergunta, contexto)
+    except ia.NenhumProvedorDisponivel:
+        return jsonify({
+            "erro": "Nenhum provedor de IA disponível agora. Confira suas chaves em Configurações."
+        }), 500
+    except Exception as erro:
+        return jsonify({"erro": str(erro)}), 500
+
+    return jsonify({**resultado, "provedor": provedor, "avisos": avisos})

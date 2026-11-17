@@ -153,7 +153,7 @@ def _inserir_mensagem(conexao, canal, lead_ref, autor, texto, enviada_em, origem
 
 def _ultima_analise(conexao, canal, lead_ref):
     linha = conexao.execute(
-        "SELECT estagio, leitura, objetivo, resposta_sugerida, evitar, provedor, "
+        "SELECT estagio, chance_fechamento, leitura, objetivo, resposta_sugerida, evitar, resumo_ficha, provedor, "
         "mensagens_consideradas, criada_em FROM analises_conversa "
         "WHERE canal = ? AND lead_ref = ? ORDER BY id DESC LIMIT 1",
         (canal, str(lead_ref)),
@@ -285,13 +285,14 @@ def analisar_conversa(canal, lead_ref):
     conexao = db.conectar()
     try:
         conexao.execute(
-            "INSERT INTO analises_conversa (canal, lead_ref, estagio, leitura, objetivo, "
-            "resposta_sugerida, evitar, provedor, mensagens_consideradas, criada_em) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO analises_conversa (canal, lead_ref, estagio, chance_fechamento, leitura, objetivo, "
+            "resposta_sugerida, evitar, resumo_ficha, provedor, mensagens_consideradas, criada_em) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                canal, str(lead_ref), analise["estagio"], analise["leitura"], analise["objetivo"],
+                canal, str(lead_ref), analise["estagio"], analise.get("chance_fechamento"),
+                analise["leitura"], analise["objetivo"],
                 analise["resposta_sugerida"], json.dumps(analise["evitar"], ensure_ascii=False),
-                provedor, len(mensagens), _agora(),
+                analise.get("resumo_ficha", ""), provedor, len(mensagens), _agora(),
             ),
         )
         conexao.commit()
@@ -300,6 +301,71 @@ def analisar_conversa(canal, lead_ref):
 
     return jsonify({**analise, "provedor": provedor, "avisos": avisos,
                     "mensagens_consideradas": len(mensagens)})
+
+
+@bp.route("/api/conversa/<canal>/<path:lead_ref>/salvar-ficha", methods=["POST"])
+def salvar_resumo_na_ficha(canal, lead_ref):
+    """Registros Automatizados (inspirado no Ploomes IA): grava o resumo
+    extraído pela IA nas observações do lead sem digitação manual."""
+    lead, erro = _validar_alvo(canal, lead_ref)
+    if erro:
+        return erro
+
+    resumo = str((request.json or {}).get("resumo") or "").strip()
+    if not resumo:
+        return jsonify({"erro": "informe o resumo para salvar na ficha"}), 400
+
+    carimbo = datetime.now().strftime("%d/%m %H:%M")
+    atual = (lead.get("observacoes") or "").strip()
+    nova_obs = f"{atual}\n[IA {carimbo}] {resumo}".strip() if atual else f"[IA {carimbo}] {resumo}"
+    nova_obs = nova_obs[-2000:]
+
+    conexao = db.conectar()
+    try:
+        if canal == "maps":
+            conexao.execute(
+                "UPDATE leads SET observacoes = ?, atualizado_em = ? WHERE place_id = ?",
+                (nova_obs, _agora(), str(lead_ref)),
+            )
+        else:
+            conexao.execute(
+                "UPDATE instagram_leads SET observacoes = ?, atualizado_em = ? WHERE id = ?",
+                (nova_obs, _agora(), int(lead_ref)),
+            )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+    return jsonify({"ok": True, "observacoes": nova_obs})
+
+
+@bp.route("/api/conversa/<canal>/<path:lead_ref>/proposta", methods=["POST"])
+def gerar_proposta_conversa(canal, lead_ref):
+    """Módulo CPQ com IA (inspirado no Ploomes IA): gera proposta comercial
+    personalizada com base no perfil do lead, histórico da conversa e oferta."""
+    lead, erro = _validar_alvo(canal, lead_ref)
+    if erro:
+        return erro
+
+    conexao = db.conectar()
+    try:
+        mensagens = _listar_mensagens(conexao, canal, lead_ref)
+    finally:
+        conexao.close()
+
+    try:
+        proposta, provedor, avisos = ia.gerar_proposta_comercial_com_fallback(lead, mensagens)
+    except ia.NenhumProvedorDisponivel as excecao:
+        logger.warning("geração de proposta CPQ falhou em todos os provedores: %s", excecao.erro_final)
+        return jsonify({
+            "erro": "Nenhum provedor de IA conseguiu gerar a proposta agora. "
+                    "Confira suas chaves em Configurações e tente de novo."
+        }), 500
+    except Exception as erro_inesperado:
+        logger.exception("erro inesperado ao gerar proposta CPQ")
+        return jsonify({"erro": str(erro_inesperado)}), 500
+
+    return jsonify({**proposta, "provedor": provedor, "avisos": avisos})
 
 
 # ---------------------------------------------------------------------------

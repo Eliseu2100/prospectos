@@ -873,10 +873,12 @@ SYSTEM_ANALISTA_CONVERSA = """Você é um consultor de vendas sênior que acompa
 
 Responda SEMPRE um único objeto JSON válido, sem markdown e sem texto fora do JSON, com EXATAMENTE estas chaves:
 - "estagio": um de "primeiro_contato" (ainda não houve resposta do lead), "descoberta" (respondeu, você ainda está entendendo a situação dele), "interesse" (demonstrou curiosidade ou pediu detalhes), "objecao" (levantou uma barreira: preço, tempo, "já tenho", "não preciso"), "negociacao" (discutindo preço, prazo ou escopo concreto), "fechamento" (perto de fechar, alinhando detalhes finais), "esfriou" (parou de responder ou perdeu o interesse).
+- "chance_fechamento": número inteiro de 0 a 100 estimando a probabilidade atual de fechar negócio com base nos sinais de compra da conversa.
 - "leitura": 1-3 frases interpretando o que o lead realmente quis dizer e o que isso revela sobre a chance de fechar. Seja específico sobre ESTA conversa, não genérico.
 - "objetivo": uma frase curta dizendo qual é o próximo objetivo tático AGORA (ex.: "Entender qual é a real dor dele com o site atual antes de falar de preço").
 - "resposta_sugerida": a próxima mensagem pronta para enviar, na voz de quem vende (primeira pessoa do singular). Curta, natural, fácil de responder. Sem saudação repetida se a conversa já está em andamento.
 - "evitar": array de 1 a 4 strings curtas com o que NÃO dizer agora (ex.: "Falar de preço antes dele demonstrar interesse"). Cada item é uma frase objetiva.
+- "resumo_ficha": 1 ou 2 frases objetivas prontas para salvar nas observações do CRM (ex.: quem respondeu/decisor, necessidade identificada, objeção principal ou próximo combinado).
 
 Princípios de negociação que você aplica:
 - Nunca empurre. Quem sente pressão trava. O objetivo de cada mensagem é conseguir a PRÓXIMA resposta, não fechar na hora.
@@ -952,6 +954,17 @@ Saudação correta para a hora de agora, caso precise saudar: {saudacao_por_hora
 Analise a negociação e responda com o JSON especificado."""
 
 
+_CHANCE_PADRAO_POR_ESTAGIO = {
+    "primeiro_contato": 10,
+    "descoberta": 30,
+    "interesse": 55,
+    "objecao": 25,
+    "negociacao": 70,
+    "fechamento": 90,
+    "esfriou": 5,
+}
+
+
 def _parsear_analise_conversa(resposta_bruta):
     resposta_limpa = (
         resposta_bruta.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
@@ -971,12 +984,20 @@ def _parsear_analise_conversa(resposta_bruta):
         if str(item).strip()
     ]
 
+    try:
+        chance = int(dados.get("chance_fechamento"))
+        chance = max(0, min(100, chance))
+    except (TypeError, ValueError):
+        chance = _CHANCE_PADRAO_POR_ESTAGIO.get(estagio, 30)
+
     return {
         "estagio": estagio,
+        "chance_fechamento": chance,
         "leitura": str(dados.get("leitura", "")).strip()[:MAX_CARACTERES_LEITURA_ANALISE],
         "objetivo": str(dados.get("objetivo", "")).strip()[:MAX_CARACTERES_OBJETIVO_ANALISE],
         "resposta_sugerida": str(dados.get("resposta_sugerida", "")).strip()[:MAX_CARACTERES_RESPOSTA_SUGERIDA],
         "evitar": evitar,
+        "resumo_ficha": str(dados.get("resumo_ficha", "")).strip()[:400],
     }
 
 
@@ -991,6 +1012,133 @@ def analisar_conversa_com_fallback(lead, mensagens):
         user,
         parser=_parsear_analise_conversa,
         descricao_log=f"analisar conversa com {lead.get('nome')}",
+        temperatura=TEMPERATURA_CLASSIFICACAO,
+        formato_json=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# CPQ com IA (Gerador de Proposta Comercial inspirado no Ploomes IA)
+# ---------------------------------------------------------------------------
+
+OFERTA_PADRAO_CPQ = (
+    "Opção 1 (Entrada - recomendada para conversão rápida): Landing Page Express por R$ 300 de implantação + "
+    "R$ 50/mês (contrato de 12 meses, inclui hospedagem, manutenção e até 2 alterações por mês). Prazo: 3 a 5 dias úteis.\n"
+    "Opção 2 (Completa): Site Institucional Profissional sob medida a partir de R$ 1.500 (pagamento único ou parcelado). "
+    "Prazo: 7 a 10 dias úteis."
+)
+
+SYSTEM_CPQ_PROPOSTA = """Você é um especialista em CPQ (Configure, Price, Quote) e propostas comerciais B2B para criação de sites de negócios locais no Brasil. Você lê os dados do cliente, o histórico da conversa no WhatsApp e a tabela de ofertas do vendedor, e monta uma proposta comercial sob medida.
+
+Responda SEMPRE um único objeto JSON válido, sem markdown e sem texto fora do JSON, com EXATAMENTE estas chaves:
+- "pacote_recomendado": nome curto do pacote ideal para este lead (ex.: "Landing Page Express" ou "Site Institucional Completo").
+- "valor_proposto": condição comercial exata da tabela de ofertas (nunca invente valores fora da tabela).
+- "prazo_entrega": prazo de entrega estimado conforme a oferta.
+- "itens_inclusos": array de 3 a 5 itens específicos que agregam valor para o nicho deste cliente (ex.: "Galeria de instalações realizadas", "Botão de orçamento rápido no WhatsApp", "Destaque para avaliações 5 estrelas do Google").
+- "mensagem_whatsapp": mensagem curta e natural (2 a 4 frases, primeira pessoa do singular) apresentando a proposta de forma leve no WhatsApp e terminando com uma pergunta simples de avanço.
+- "documento_proposta": texto completo e bem estruturado da proposta comercial (com apresentação da solução para o negócio dele, escopo incluso, investimento, prazo e próximos passos), pronto para copiar ou enviar em documento."""
+
+
+def montar_prompt_proposta_comercial(lead, mensagens, info_oferta=None):
+    dados_empresa = _bloco_dados_empresa(
+        lead.get("nome"), lead.get("categoria"), lead.get("endereco"), lead.get("nota"),
+        num_avaliacoes=lead.get("num_avaliacoes"), cidade=lead.get("cidade"),
+        instagram_url=lead.get("instagram_url"),
+    )
+    oferta = (info_oferta or db.obter_config("piloto_info_oferta") or "").strip() or OFERTA_PADRAO_CPQ
+    return f"""Dados do cliente:
+{dados_empresa}
+
+Contexto do site atual:
+{_contexto_site(lead.get("site_status"), lead.get("site_problemas"))}
+{abordagem.bloco_dor_do_nicho(lead.get("categoria"), lead.get("nicho"))}{_bloco_perfil_vendedor()}
+Tabela de ofertas e preços autorizados:
+{oferta}
+
+Histórico da conversa:
+{_bloco_historico_conversa(mensagens)}
+
+Monte a proposta comercial personalizada (CPQ) e responda com o JSON especificado."""
+
+
+def _parsear_proposta_comercial(resposta_bruta):
+    limpa = resposta_bruta.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    dados = json.loads(limpa)
+    itens_brutos = dados.get("itens_inclusos") or []
+    if isinstance(itens_brutos, str):
+        itens_brutos = [itens_brutos]
+    itens = [str(i).strip()[:200] for i in list(itens_brutos)[:6] if str(i).strip()]
+    return {
+        "pacote_recomendado": str(dados.get("pacote_recomendado", "Landing Page Express")).strip()[:120],
+        "valor_proposto": str(dados.get("valor_proposto", "")).strip()[:200],
+        "prazo_entrega": str(dados.get("prazo_entrega", "Até 5 dias úteis")).strip()[:100],
+        "itens_inclusos": itens,
+        "mensagem_whatsapp": str(dados.get("mensagem_whatsapp", "")).strip()[:800],
+        "documento_proposta": str(dados.get("documento_proposta", "")).strip()[:3000],
+    }
+
+
+def gerar_proposta_comercial_com_fallback(lead, mensagens, info_oferta=None):
+    """Gera uma proposta comercial personalizada (CPQ IA) para o lead."""
+    return executar_com_fallback(
+        SYSTEM_CPQ_PROPOSTA,
+        montar_prompt_proposta_comercial(lead, mensagens, info_oferta),
+        parser=_parsear_proposta_comercial,
+        descricao_log=f"gerar proposta CPQ para {lead.get('nome')}",
+        temperatura=TEMPERATURA_CLASSIFICACAO,
+        formato_json=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Copiloto Comercial / Consultas Inteligentes do CRM (inspirado no Ploomes IA)
+# ---------------------------------------------------------------------------
+
+SYSTEM_COPILOTO_CRM = """Você é o Copiloto Comercial de IA do CRM Seriax OS (inspirado nas Consultas Inteligentes do Ploomes IA). Você analisa os dados reais da carteira de leads, funil de conversão, conversas recentes no WhatsApp e desempenho por nicho/cidade, e responde às perguntas do vendedor de forma direta, prática e acionável.
+
+Responda SEMPRE um único objeto JSON válido, sem markdown e sem texto fora do JSON, com EXATAMENTE estas chaves:
+- "resposta": resposta executiva clara e direta (2 a 5 frases) citando números e nomes reais dos leads fornecidos no contexto. Nunca invente dados fora do contexto.
+- "acoes_recomendadas": array de 2 a 4 ações práticas e imediatas para o vendedor executar agora (ex.: "Priorizar resposta ao lead X que demonstrou interesse", "Disparar abordagem para os leads nota 5.0 sem site em Campinas").
+- "leads_destaque": array de até 4 objetos {"place_id": "...", "nome": "...", "motivo": "..."} destacando leads específicos do contexto que merecem ação imediata (use exatamente o place_id fornecido no contexto)."""
+
+
+def _parsear_resposta_copiloto(resposta_bruta):
+    limpa = resposta_bruta.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    dados = json.loads(limpa)
+    acoes_brutas = dados.get("acoes_recomendadas") or []
+    if isinstance(acoes_brutas, str):
+        acoes_brutas = [acoes_brutas]
+    acoes = [str(a).strip()[:250] for a in list(acoes_brutas)[:5] if str(a).strip()]
+
+    destaques = []
+    for item in list(dados.get("leads_destaque") or [])[:4]:
+        if isinstance(item, dict) and item.get("place_id") and item.get("nome"):
+            destaques.append({
+                "place_id": str(item["place_id"]).strip(),
+                "nome": str(item["nome"]).strip()[:120],
+                "motivo": str(item.get("motivo", "")).strip()[:200],
+            })
+    return {
+        "resposta": str(dados.get("resposta", "")).strip()[:1500],
+        "acoes_recomendadas": acoes,
+        "leads_destaque": destaques,
+    }
+
+
+def consultar_copiloto_crm_com_fallback(pergunta, contexto_crm):
+    """Responde a uma consulta em linguagem natural sobre o funil e os leads do CRM."""
+    user = f"""Contexto real e atualizado do CRM agora:
+{contexto_crm}
+
+Pergunta do vendedor:
+"{pergunta}"
+
+Analise os dados reais acima e responda com o JSON especificado."""
+    return executar_com_fallback(
+        SYSTEM_COPILOTO_CRM,
+        user,
+        parser=_parsear_resposta_copiloto,
+        descricao_log="consulta ao copiloto do CRM",
         temperatura=TEMPERATURA_CLASSIFICACAO,
         formato_json=True,
     )

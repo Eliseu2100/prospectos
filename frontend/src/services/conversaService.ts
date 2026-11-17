@@ -4,6 +4,7 @@ import type {
   AutorMensagem,
   ConversaResposta,
   EstadoCaptura,
+  PropostaComercial,
 } from "@/types/conversa"
 
 const base = (canal: string, leadRef: string) =>
@@ -26,6 +27,14 @@ export const conversaService = {
 
   analisar: (canal: string, leadRef: string) =>
     httpClient.post<AnaliseConversa>(`${base(canal, leadRef)}/analisar`),
+
+  gerarProposta: (canal: string, leadRef: string) =>
+    httpClient.post<PropostaComercial>(`${base(canal, leadRef)}/proposta`),
+
+  salvarFicha: (canal: string, leadRef: string, resumo: string) =>
+    httpClient.post<{ ok: true; observacoes: string }>(`${base(canal, leadRef)}/salvar-ficha`, {
+      resumo,
+    }),
 
   estadoCaptura: () => httpClient.get<EstadoCaptura>("/api/conversa/estado-captura"),
 
