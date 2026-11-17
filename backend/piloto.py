@@ -361,7 +361,10 @@ def leads_para_followup(conexao, agora=None):
                (SELECT MIN(enviada_em) FROM mensagens_conversa
                  WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor') AS primeiro_envio_em,
                (SELECT MAX(enviada_em) FROM mensagens_conversa
-                 WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor') AS ultimo_envio_em
+                 WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor') AS ultimo_envio_em,
+               (SELECT COUNT(*) FROM mensagens_conversa
+                 WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor'
+                   AND texto NOT LIKE '[imagem]%') AS textos_vendedor
         FROM leads l
         WHERE l.piloto_status = 'automatico' AND l.status = 'contatado'
           AND l.site_status IN ({marcadores_situacao})
@@ -380,13 +383,82 @@ def leads_para_followup(conexao, agora=None):
         lead = dict(linha)
         if not lead["primeiro_envio_em"]:
             continue
-        dias = abordagem.CADENCIA_FOLLOWUP_DIAS[lead["follow_ups_enviados"] or 0]
-        vence_em = _data(lead["primeiro_envio_em"]).date() + timedelta(days=dias)
+        indice = min(
+            max(lead["follow_ups_enviados"] or 0, (lead["textos_vendedor"] or 1) - 1),
+            len(abordagem.CADENCIA_FOLLOWUP_DIAS) - 1,
+        )
+        dias = abordagem.CADENCIA_FOLLOWUP_DIAS[indice]
+        intervalo_ultimo = abordagem.INTERVALO_ENTRE_FOLLOWUPS_DIAS[indice]
+        vence_em = max(
+            _data(lead["primeiro_envio_em"]).date() + timedelta(days=dias),
+            _data(lead["ultimo_envio_em"]).date() + timedelta(days=intervalo_ultimo),
+        )
         if agora.date() >= vence_em and _data(lead["ultimo_envio_em"]).date() < agora.date():
             lead["vence_em"] = vence_em
             vencidos.append(lead)
     vencidos.sort(key=lambda l: l["vence_em"])
     return vencidos
+
+
+def _contar_textos_vendedor(conexao, place_id):
+    return conexao.execute(
+        "SELECT COUNT(*) FROM mensagens_conversa WHERE canal = 'maps' AND lead_ref = ? "
+        "AND autor = 'vendedor' AND texto NOT LIKE '[imagem]%'",
+        (place_id,),
+    ).fetchone()[0]
+
+
+def _ignorar_sem_resposta(conexao, lead, agora_iso, follow_ups=None):
+    """Após atingir as 3 tentativas sem resposta humana (ou apenas com mensagem
+    automática), move o lead para a aba 'ignorado' e encerra o piloto."""
+    if follow_ups is not None:
+        conexao.execute(
+            "UPDATE leads SET follow_ups_enviados = ?, ultimo_followup_em = ?, "
+            "status = 'ignorado', piloto_status = 'encerrado', proximo_followup = NULL, atualizado_em = ? "
+            "WHERE place_id = ?",
+            (follow_ups, agora_iso, agora_iso, lead["place_id"]),
+        )
+    else:
+        conexao.execute(
+            "UPDATE leads SET status = 'ignorado', piloto_status = 'encerrado', "
+            "proximo_followup = NULL, atualizado_em = ? WHERE place_id = ?",
+            (agora_iso, lead["place_id"]),
+        )
+    if lead.get("status") != "ignorado":
+        conexao.execute(
+            "INSERT INTO historico_status (place_id, status_anterior, status_novo, alterado_em) "
+            "VALUES (?, ?, 'ignorado', ?)",
+            (lead["place_id"], lead.get("status") or "contatado", agora_iso),
+        )
+
+
+def arquivar_sem_resposta_apos_limite(conexao):
+    """Move para 'ignorado' todo lead em 'contatado' que já recebeu 3+ tentativas
+    de texto do vendedor sem nenhuma resposta humana (inclui quem só deixou
+    mensagem automática de robô)."""
+    agora_iso = datetime.now().isoformat(timespec="seconds")
+    linhas = conexao.execute(
+        """
+        SELECT place_id, nome, status FROM leads l
+        WHERE l.status = 'contatado'
+          AND NOT EXISTS (
+              SELECT 1 FROM mensagens_conversa m
+              WHERE m.canal = 'maps' AND m.lead_ref = l.place_id AND m.autor = 'lead' AND m.automatica = 0
+          )
+          AND (
+              COALESCE(l.follow_ups_enviados, 0) >= ?
+              OR (SELECT COUNT(*) FROM mensagens_conversa m
+                  WHERE m.canal = 'maps' AND m.lead_ref = l.place_id
+                    AND m.autor = 'vendedor' AND m.texto NOT LIKE '[imagem]%') >= ?
+          )
+        """,
+        (len(abordagem.CADENCIA_FOLLOWUP_DIAS), MAX_MENSAGENS_SEM_RESPOSTA),
+    ).fetchall()
+    for linha in linhas:
+        _ignorar_sem_resposta(conexao, dict(linha), agora_iso)
+    if linhas:
+        conexao.commit()
+    return len(linhas)
 
 
 def fazer_followup(cfg, agora=None):
@@ -415,6 +487,9 @@ def fazer_followup(cfg, agora=None):
                     return None
         except Exception:
             pass
+        textos_anteriores = lead.get("textos_vendedor") or _contar_textos_vendedor(conexao, lead["place_id"])
+        numero = max((lead["follow_ups_enviados"] or 0) + 1, textos_anteriores)
+        lead["follow_ups_enviados"] = numero - 1
         ja_enviado = "\n---\n".join(
             m["texto"] for m in _listar_mensagens(conexao, "maps", lead["place_id"]) if m["autor"] == "vendedor")
         try:
@@ -429,20 +504,23 @@ def fazer_followup(cfg, agora=None):
     finally:
         conexao.close()
 
-    numero = (lead["follow_ups_enviados"] or 0) + 1
     mensagem = _acrescentar_link_site_modelo(mensagem, numero)
     texto = ia.ajustar_saudacao(mensagem)
     enviar_e_registrar("maps", lead["place_id"], lead, texto)
 
-    ultimo = numero >= len(abordagem.CADENCIA_FOLLOWUP_DIAS)
     agora_iso = datetime.now().isoformat(timespec="seconds")
     conexao = db.conectar()
     try:
-        conexao.execute(
-            "UPDATE leads SET follow_ups_enviados = ?, ultimo_followup_em = ?, atualizado_em = ? "
-            "WHERE place_id = ?", (numero, agora_iso, agora_iso, lead["place_id"]))
+        total_textos = _contar_textos_vendedor(conexao, lead["place_id"])
+        ultimo = numero >= len(abordagem.CADENCIA_FOLLOWUP_DIAS) or total_textos >= MAX_MENSAGENS_SEM_RESPOSTA
+        if ultimo:
+            _ignorar_sem_resposta(conexao, lead, agora_iso, follow_ups=numero)
+        else:
+            conexao.execute(
+                "UPDATE leads SET follow_ups_enviados = ?, ultimo_followup_em = ?, atualizado_em = ? "
+                "WHERE place_id = ?", (numero, agora_iso, agora_iso, lead["place_id"]))
         registrar_evento(conexao, "followup_enviado", lead["place_id"], lead["nome"],
-                         f"{numero}º follow-up{' (despedida)' if ultimo else ''}: {texto}")
+                         f"{numero}º follow-up{' (despedida — movido para ignorado)' if ultimo else ''}: {texto}")
         conexao.commit()
     finally:
         conexao.close()
@@ -469,10 +547,13 @@ def leads_com_robo(conexao, agora=None):
         WHERE l.piloto_status = 'automatico' AND l.status = 'contatado'
           AND l.site_status IN ({marcadores_situacao})
           AND m.autor = 'lead' AND m.automatica = 1 AND m.enviada_em <= ?
+          AND (SELECT COUNT(*) FROM mensagens_conversa
+                WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor'
+                  AND texto NOT LIKE '[imagem]%') < ?
           AND NOT EXISTS (SELECT 1 FROM piloto_eventos e
                            WHERE e.place_id = l.place_id AND e.tipo = 'recado_robo')
         """,
-        (*SITUACOES_SITE_ALVO, limite),
+        (*SITUACOES_SITE_ALVO, limite, MAX_MENSAGENS_SEM_RESPOSTA),
     ).fetchall()
     return [dict(linha) for linha in linhas]
 
@@ -491,8 +572,11 @@ def mandar_recado_robo(lead):
 
     texto = abordagem.recado_para_robo(ia.nome_curto_empresa(lead["nome"]))
     enviar_e_registrar("maps", lead["place_id"], lead, texto)
+    agora_iso = datetime.now().isoformat(timespec="seconds")
     conexao = db.conectar()
     try:
+        if _contar_textos_vendedor(conexao, lead["place_id"]) >= MAX_MENSAGENS_SEM_RESPOSTA:
+            _ignorar_sem_resposta(conexao, lead, agora_iso)
         registrar_evento(conexao, "recado_robo", lead["place_id"], lead["nome"], texto)
         conexao.commit()
     finally:
@@ -636,6 +720,12 @@ def rodar_uma_vez(agora=None):
         return
     if mensageiros.estado_whatsapp() != "open":
         return
+
+    conexao = db.conectar()
+    try:
+        arquivar_sem_resposta_apos_limite(conexao)
+    finally:
+        conexao.close()
 
     if cfg["piloto_auto_resposta"] == "1" or cfg["piloto_recado_robo"] == "1":
         import sincronizacao_whatsapp

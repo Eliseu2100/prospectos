@@ -456,7 +456,7 @@ function Formulario({ dados }: { dados: PainelPiloto }) {
       <Secao
         numero={4}
         titulo="Quem não respondeu"
-        descricao="A maioria das vendas sai do follow-up, sem insistir demais. O piloto envia no máximo 3 mensagens por cliente: o primeiro contato e, se não houver resposta, 2 follow-ups (no 2º e no 5º dia). A 3ª mensagem já é uma despedida leve e educada, e depois disso ele para. Usa o mesmo ritmo e o mesmo limite diário dos primeiros contatos."
+        descricao="O piloto tenta no máximo 3 vezes por cliente: 1ª mensagem no primeiro contato, 2ª mensagem após 2 dias (com o link do exemplo) e 3ª mensagem após 3 dias da segunda (oferecendo o site, sinalizando que é a última mensagem, agradecendo a atenção e desejando sucesso). Ao concluir a 3ª tentativa sem resposta (ou só com mensagem automática), o lead vai automaticamente para a aba Ignorados."
       >
         <div className="flex flex-col gap-3">
           <label className="flex items-center gap-3 text-[15px]">

@@ -81,6 +81,7 @@ FRASES_AUTOMATICAS_FORTES = (
     "assim que possivel", "assim que retornarmos", "em breve retornaremos",
     "voce entrou em contato", "atendente ja foi notificado", "iniciara o atendimento",
     "nosso whatsapp funciona", "em instantes",
+    "*1*", "*2*", "qual sua despesa", "sua conta de energia", "valor da sua conta",
 )
 FRASES_AUTOMATICAS_FRACAS = (
     "em que podemos ajudar", "como podemos ajudar", "para agilizar", "para facilitar",

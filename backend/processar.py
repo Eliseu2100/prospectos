@@ -778,6 +778,22 @@ def migrar_banco(conexao):
         "UPDATE leads SET piloto_status = 'encerrado' "
         "WHERE status IN ('fechou', 'recusou', 'ignorado') AND piloto_status = 'automatico'"
     )
+    conexao.execute(
+        """
+        UPDATE leads SET status = 'ignorado', piloto_status = 'encerrado', proximo_followup = NULL
+        WHERE status = 'contatado'
+          AND NOT EXISTS (
+              SELECT 1 FROM mensagens_conversa m
+              WHERE m.canal = 'maps' AND m.lead_ref = leads.place_id AND m.autor = 'lead' AND m.automatica = 0
+          )
+          AND (
+              COALESCE(follow_ups_enviados, 0) >= 2
+              OR (SELECT COUNT(*) FROM mensagens_conversa m
+                  WHERE m.canal = 'maps' AND m.lead_ref = leads.place_id
+                    AND m.autor = 'vendedor' AND m.texto NOT LIKE '[imagem]%') >= 3
+          )
+        """
+    )
     conexao.commit()
 
     _criar_indices(conexao)

@@ -507,6 +507,9 @@ class TestFollowup:
 
         assert len(whatsapp.enviados) == 1
         assert "exemplo.netlify.app" not in whatsapp.enviados[0][1]
+        a = lead("a")
+        assert a["status"] == "ignorado"
+        assert a["piloto_status"] == "encerrado"
 
     def test_site_ruim_tambem_recebe_followup(self, banco):
         """Decisão do Eliseu em 08/11/2026: site_ruim entrou na fila do piloto (depois

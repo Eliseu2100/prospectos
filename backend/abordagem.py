@@ -100,27 +100,31 @@ def escolher_estrutura_abertura(site_status, site_problemas, nota, num_avaliacoe
 # Follow-up de quem não respondeu
 # ---------------------------------------------------------------------------
 
-# Limite máximo de 3 mensagens por lead (1º contato no D0 + 1º follow-up no D2
-# + 2º e último follow-up no D5). O 2º follow-up já é a despedida leve: depois
-# dele o piloto não envia mais nada para não soar invasivo ou insistente.
+# Limite máximo de 3 mensagens por lead:
+# - 1ª mensagem: D0 (primeiro contato)
+# - 2ª mensagem: 2 dias após a 1ª (D2, 1º follow-up com o link do exemplo)
+# - 3ª mensagem: 3 dias após a 2ª (D5, 2º e último follow-up: oferece o produto,
+#   avisa que é a última mensagem, despede-se com educação, agradece a atenção e
+#   deseja sucesso nos negócios; em seguida o lead vai para a aba Ignorados).
 CADENCIA_FOLLOWUP_DIAS = [2, 5]
+INTERVALO_ENTRE_FOLLOWUPS_DIAS = [2, 3]
 
 ANGULOS_FOLLOWUP = {
     1: (
-        "Oportunidade de ganho com exemplo visual (o link do site de exemplo é anexado depois, por "
-        "Python): sem apontar nenhum defeito no site deles, mostre em uma frase como uma página "
-        "focada em destacar os projetos/serviços realizados e o pedido de orçamento a um toque ajuda "
-        "a converter quem pesquisa na cidade. Termine com uma pergunta leve e sem pressão (ex.: "
-        "'Posso montar uma ideia visual parecida para vocês avaliarem sem compromisso?'). Proibido: "
-        "'subir a conversa', 'não se perder na correria', 'é só me avisar que não insisto', 'olhei o "
-        "site de novo' ou criticar o site atual."
+        "Oportunidade de ganho com exemplo visual (2ª mensagem, enviada 2 dias após a primeira; o link "
+        "do site de exemplo é anexado depois, por Python): sem apontar nenhum defeito no site deles, "
+        "mostre em uma frase como uma página focada em destacar os projetos/serviços realizados e o "
+        "pedido de orçamento a um toque ajuda a converter quem pesquisa na cidade. Termine com uma "
+        "pergunta leve e sem pressão (ex.: 'Posso montar uma ideia visual parecida para vocês avaliarem "
+        "sem compromisso?'). Proibido: 'subir a conversa', 'não se perder na correria', 'é só me avisar "
+        "que não insisto', 'olhei o site de novo' ou criticar o site atual."
     ),
     2: (
-        "Despedida digna e leve (3ª e última mensagem do contato): avise com educação que é a sua "
-        "última mensagem para não tomar o tempo deles na correria, que entendeu que agora não é o "
-        "momento e que deixa o contato à disposição caso precisem fortalecer a presença digital no "
-        "futuro. Deseje sucesso e ótimos negócios. Nenhuma pergunta, nenhuma cobrança e nenhuma "
-        "crítica ao site."
+        "Oferta final + despedida educada (3ª e última mensagem, enviada 3 dias após a segunda): "
+        "ofereça de forma clara e cordial a criação do site/página profissional para destacar o "
+        "trabalho da empresa, sinalize com educação que esta é a última mensagem que você envia para "
+        "não incomodar na rotina deles, agradeça pela atenção e deseje muito sucesso nos negócios. "
+        "Nenhuma pergunta no final, nenhuma cobrança e nenhuma crítica ao site."
     ),
 }
 

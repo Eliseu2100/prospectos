@@ -585,6 +585,15 @@ def montar_prompt_followup(nome, categoria, endereco, nota, follow_ups_enviados,
         else ""
     )
 
+    orientacao_fechamento = (
+        "- Como esta é a 3ª e última mensagem: ofereça de forma clara a criação do site/página profissional, "
+        "sinalize com educação que é a sua última mensagem para não incomodar, agradeça a atenção e deseje "
+        "muito sucesso nos negócios. NÃO faça pergunta no final."
+        if ultimo
+        else "- Proibido repetir a fórmula 'subindo a conversa para não se perder' ou 'é só me avisar que não "
+             "insisto'. Entre com um ganho prático para o negócio dele e termine com UMA pergunta leve."
+    )
+
     return f"""Escreva UMA mensagem de FOLLOW-UP via WhatsApp para a empresa abaixo, que recebeu sua mensagem e não respondeu. É o follow-up número {numero}{" (o último)" if ultimo else ""}.
 
 Ângulo deste follow-up:
@@ -599,9 +608,9 @@ Dados da empresa:
 Orientações desta mensagem:
 - Mais curta que o primeiro contato: 1 a 3 frases, cabe numa tela sem rolar.
 - No máximo UMA pergunta{" (nesta, nenhuma)" if ultimo else ""}. Zero emoji, zero travessão.
-- Nada de se desculpar por "incomodar de novo", cobrar resposta ou falar de preço.
-- Proibido repetir a fórmula "subindo a conversa para não se perder" ou "é só me avisar que não insisto" (vira o 'não' e todos os concorrentes usam). Entre com um motivo novo e específico do negócio dele, e termine com uma pergunta de uma palavra.
-- Não reafirme defeito técnico do site dele. Se o primeiro contato apontou um, mude de assunto para o resultado (pedidos de orçamento, instalações mostradas) em vez de insistir no defeito.
+- Nada de cobrar resposta ou falar de preço.
+{orientacao_fechamento}
+- Não aponte nem reafirme defeito técnico do site dele. Foque no resultado (pedidos de orçamento, instalações mostradas).
 - Não repita a saudação de bom dia/boa tarde se não couber; um "Oi" basta.
 """
 
