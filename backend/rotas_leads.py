@@ -258,7 +258,9 @@ def atualizar_status(place_id):
 
         if novo_status in STATUS_QUE_ENCERRAM_FOLLOWUP:
             conexao.execute(
-                "UPDATE leads SET status = ?, proximo_followup = NULL, atualizado_em = ? WHERE place_id = ?",
+                "UPDATE leads SET status = ?, proximo_followup = NULL, "
+                "piloto_status = CASE WHEN piloto_status = 'automatico' THEN 'encerrado' ELSE piloto_status END, "
+                "atualizado_em = ? WHERE place_id = ?",
                 (novo_status, agora, place_id),
             )
         else:
@@ -299,7 +301,9 @@ def ignorar_lead(place_id):
     conexao = db.conectar()
     try:
         cursor = conexao.execute(
-            "UPDATE leads SET status = 'ignorado', proximo_followup = NULL, atualizado_em = ? WHERE place_id = ?",
+            "UPDATE leads SET status = 'ignorado', proximo_followup = NULL, "
+            "piloto_status = CASE WHEN piloto_status = 'automatico' THEN 'encerrado' ELSE piloto_status END, "
+            "atualizado_em = ? WHERE place_id = ?",
             (datetime.now().isoformat(timespec="seconds"), place_id),
         )
         conexao.commit()
@@ -333,7 +337,9 @@ def atualizar_status_em_lote():
                 continue
             if novo_status in STATUS_QUE_ENCERRAM_FOLLOWUP:
                 conexao.execute(
-                    "UPDATE leads SET status = ?, proximo_followup = NULL, atualizado_em = ? WHERE place_id = ?",
+                    "UPDATE leads SET status = ?, proximo_followup = NULL, "
+                    "piloto_status = CASE WHEN piloto_status = 'automatico' THEN 'encerrado' ELSE piloto_status END, "
+                    "atualizado_em = ? WHERE place_id = ?",
                     (novo_status, agora, place_id),
                 )
             else:
@@ -365,7 +371,9 @@ def ignorar_em_lote():
     try:
         placeholders = ",".join("?" for _ in place_ids)
         cursor = conexao.execute(
-            f"UPDATE leads SET status = 'ignorado', proximo_followup = NULL, atualizado_em = ? WHERE place_id IN ({placeholders})",
+            f"UPDATE leads SET status = 'ignorado', proximo_followup = NULL, "
+            f"piloto_status = CASE WHEN piloto_status = 'automatico' THEN 'encerrado' ELSE piloto_status END, "
+            f"atualizado_em = ? WHERE place_id IN ({placeholders})",
             (agora, *place_ids),
         )
         conexao.commit()
@@ -549,13 +557,9 @@ def gerar_copy_para_lead(conexao, lead, tipo="contato", mensagens_anteriores=Non
             checklist = json.loads(lead["site_checklist"]) if lead["site_checklist"] else None
         except (TypeError, ValueError):
             checklist = None
-        faltas = [f for f in (checklist or {}).get("falta", []) if f in processar.FALTAS_CONFIAVEIS]
-        if checklist and faltas:
-            resumo_raio_x = (
-                "Raio-X do site (dados reais): TEM "
-                + (", ".join(checklist.get("tem", [])) or "quase nada")
-                + "; FALTA " + ", ".join(faltas) + "."
-            )
+        itens_positivos = (checklist or {}).get("tem") or []
+        if itens_positivos:
+            resumo_raio_x = "Raio-X do site (dados reais): TEM " + ", ".join(itens_positivos) + "."
             conteudo_site = f"{conteudo_site}\n{resumo_raio_x}" if conteudo_site else resumo_raio_x
 
     mensagem, provedor_usado, avisos = ia.gerar_mensagem_com_fallback(

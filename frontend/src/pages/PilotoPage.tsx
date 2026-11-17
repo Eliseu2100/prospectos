@@ -456,7 +456,7 @@ function Formulario({ dados }: { dados: PainelPiloto }) {
       <Secao
         numero={4}
         titulo="Quem não respondeu"
-        descricao="A maioria das vendas sai do follow-up. O piloto retoma quem ficou em silêncio no 2º, 5º, 9º e 14º dia depois do primeiro contato, cada vez com um ângulo novo. A última é uma despedida educada, e depois disso ele para. Usa o mesmo ritmo e o mesmo limite diário dos primeiros contatos."
+        descricao="A maioria das vendas sai do follow-up, sem insistir demais. O piloto envia no máximo 3 mensagens por cliente: o primeiro contato e, se não houver resposta, 2 follow-ups (no 2º e no 5º dia). A 3ª mensagem já é uma despedida leve e educada, e depois disso ele para. Usa o mesmo ritmo e o mesmo limite diário dos primeiros contatos."
       >
         <div className="flex flex-col gap-3">
           <label className="flex items-center gap-3 text-[15px]">

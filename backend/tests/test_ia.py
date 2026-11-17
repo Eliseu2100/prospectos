@@ -269,11 +269,14 @@ class TestSorteioDeFechamento:
 
 
 class TestAbordagem:
-    def test_site_ruim_pode_abrir_com_observacao(self, monkeypatch):
+    def test_site_ruim_so_abre_com_observacao_se_link_nao_abrir(self, monkeypatch):
         monkeypatch.setattr(ia.abordagem.random, "choice", lambda opcoes: opcoes)
-        opcoes = ia.abordagem.escolher_estrutura_abertura("site_ruim", "não abre no celular", 4.0, 3)
-        assert "observacao" in opcoes
-        assert "elogio_e_lacuna" not in opcoes
+        opcoes_celular = ia.abordagem.escolher_estrutura_abertura("site_ruim", "não abre no celular", 5.0, 62)
+        assert "observacao" not in opcoes_celular
+        assert "elogio_e_lacuna" in opcoes_celular
+        opcoes_fora = ia.abordagem.escolher_estrutura_abertura("site_ruim", "site fora do ar (não abre)", 4.0, 3)
+        assert "observacao" in opcoes_fora
+        assert "elogio_e_lacuna" not in opcoes_fora
 
     def test_elogio_so_com_reputacao_real(self, monkeypatch):
         monkeypatch.setattr(ia.abordagem.random, "choice", lambda opcoes: opcoes)
@@ -282,8 +285,9 @@ class TestAbordagem:
         assert "observacao" not in ia.abordagem.escolher_estrutura_abertura("sem_site", None, 4.9, 120)
 
     def test_angulo_do_followup(self):
-        assert "despedida" in ia.abordagem.angulo_followup(4).lower()
-        assert ia.abordagem.angulo_followup(9) == ia.abordagem.angulo_followup(4)
+        assert ia.abordagem.CADENCIA_FOLLOWUP_DIAS == [2, 5]
+        assert "despedida" in ia.abordagem.angulo_followup(2).lower()
+        assert ia.abordagem.angulo_followup(9) == ia.abordagem.angulo_followup(2)
         assert ia.abordagem.angulo_followup(1) != ia.abordagem.angulo_followup(2)
 
     def test_dor_do_nicho_vem_do_arquivo_local(self, monkeypatch, tmp_path):
@@ -498,6 +502,9 @@ class TestNomeCurtoEMensagemCurta:
         ("Jairo Pinheiro Nutricionista | Nutrição Esportiva", "Jairo Pinheiro Nutricionista"),
         ("Fino Bronze SBC", "Fino Bronze SBC"),
         ("Studio K - SP", "Studio K"),
+        ("Energia Solar - Cemantech", "Cemantech"),
+        ("Energia Solar: A.A Sol", "A.A Sol"),
+        ("☀️Cursos de Energia Solar - UNICAMP", "Cursos de Energia Solar"),
     ])
     def test_nome_curto(self, nome, esperado):
         assert ia.nome_curto_empresa(nome) == esperado

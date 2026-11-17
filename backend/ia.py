@@ -429,8 +429,8 @@ Regras invariáveis (valem para TODA mensagem):
 - Responda APENAS com o texto final da mensagem: sem aspas em volta, sem explicações, sem markdown.
 
 Exemplos do tom certo (régua de qualidade - não copie as frases):
-"Janete, boa tarde! A Estética Vit tem nota 5.0 com mais de 100 avaliações no Google, dá pra ver o capricho. Por isso me chamou atenção não ter um site pra quem pesquisa fora do Maps. Falta de tempo mesmo?"
-"Oi, tudo bem? Dei uma olhada no site da Oficina Mota e ele não abre direito no celular. Isso costuma fazer o cliente desistir antes de ligar. Vocês já tinham percebido?"
+"Janete, boa tarde! Aqui é o Eliseu, crio sites para negócios locais. A Estética Vit tem nota 5.0 com mais de 100 avaliações no Google, dá pra ver o capricho, e ainda não encontrei um site no perfil pra quem pesquisa fora do Maps. Hoje as clientes novas chegam mais por indicação ou pela busca?"
+"Bom dia, pessoal! Aqui é o Eliseu, crio sites para negócios locais. Vi que a Oficina Mota tem nota 4.9 com mais de 60 avaliações na cidade, excelente resultado. Hoje os pedidos de orçamento chegam mais por indicação ou por quem procura no Google?"
 """
 
 
@@ -438,17 +438,31 @@ def _linha_dado(rotulo, valor):
     return f"- {rotulo}: {valor}" if valor not in (None, "", 0) else None
 
 
-_SEPARADORES_NOME = (" | ", " - ", " – ", " — ", "- ", " (", ", ")
+_SEPARADORES_NOME = (" | ", " - ", " – ", " — ", "- ", ": ", " (", ", ")
+_PREFIXOS_GENERICOS_NICHO = {
+    "energia solar",
+    "energia solar fotovoltaica",
+    "aquecimento solar",
+    "placa solar",
+    "placas solares",
+    "painel solar",
+}
 
 
 def nome_curto_empresa(nome):
     """Nome do Google costuma vir com descrição de SEO: "Clínica Needles -
     Acupuntura e Fisioterapia Vestibular em Santo André". Fica só a parte que é
-    o nome ("Clínica Needles") - decidido aqui, não pelo modelo."""
-    nome = (nome or "").strip()
+    o nome ("Clínica Needles") - decidido aqui, não pelo modelo. Se a primeira
+    parte antes do separador for apenas o nome genérico do nicho ("Energia Solar -
+    Cemantech"), usa a segunda parte ("Cemantech")."""
+    nome = re.sub(r"^[^\wÀ-ÿ]+", "", (nome or "").strip()).strip()
     for separador in _SEPARADORES_NOME:
         if separador in nome:
-            primeira = nome.split(separador, 1)[0].strip()
+            primeira, resto = nome.split(separador, 1)
+            primeira, resto = primeira.strip(), resto.strip()
+            if primeira.lower() in _PREFIXOS_GENERICOS_NICHO and len(resto) >= 3:
+                nome = resto
+                continue
             if len(primeira) >= 3:
                 nome = primeira
     return nome
@@ -494,28 +508,25 @@ def _bloco_dados_empresa(nome, categoria, endereco, nota, num_avaliacoes=None,
 def _contexto_site(site_status, site_problemas):
     if site_status == "site_ruim":
         return (
-            f"A empresa TEM um site, mas ele está com problemas sérios detectados automaticamente: "
-            f"{site_problemas or 'problemas técnicos'}. A oferta é um site NOVO (reformulação). "
-            "Cite o problema de forma LEIGA e respeitosa (ex.: em vez de 'sem viewport', diga que "
-            "'o site não abre direito no celular'), e use a combinação reputação forte + site problemático "
-            "como a oportunidade perdida. Só diga que o site está 'fora do ar' se o problema informado "
-            "for literalmente 'site fora do ar'. Erro HTTP (404, 500 etc.) ou domínio com defeito vira "
-            "'o endereço do site que está no perfil do Google dá erro ao abrir', nunca 'fora do ar'. "
-            "Lentidão, 'não seguro', celular, falta de descrição no Google, 'feito em construtor "
-            "pronto' e qualquer defeito que o dono possa desmentir em segundos (já aconteceu: o dono "
-            "respondeu 'engano seu, o site está no ar' e outro mostrou que o site dele ranqueia) NÃO "
-            "devem ser afirmados: fale do negócio dele e pergunte como o cliente novo chega, sem apontar "
-            "defeito. Cite SOMENTE problemas desta lista e do raio-X "
-            "fornecido: nunca diga que falta telefone, e-mail, endereço, botão de WhatsApp ou foto, "
-            "nem opine sobre a qualidade das fotos."
+            f"A empresa TEM um site (diagnóstico interno: {site_problemas or 'problemas técnicos'}). "
+            "A oferta é uma página nova e moderna focada em conversão (oportunidade de ganho). "
+            "REGRA DE OURO: troque 'apontar defeito' por 'oportunidade de ganho'. NUNCA critique o site "
+            "atual da empresa nem diga que ele 'não abre direito no celular', 'está difícil de usar', "
+            "'está lento', 'não é seguro', 'falta descrição no Google', 'falta telefone/endereço/botão' "
+            "ou 'está desatualizado'. O dono leva críticas para o lado pessoal e fica na defensiva. "
+            "A ÚNICA exceção em que você pode avisar sobre o link é quando o diagnóstico interno for "
+            "literalmente 'site fora do ar', 'domínio não encontrado' ou 'erro (HTTP', dizendo em tom "
+            "de aviso amigo que tentou abrir o endereço do perfil no Google e deu erro. Em todos os "
+            "outros casos, elogie a reputação real deles (nota e avaliações) e fale da oportunidade de "
+            "destacar os serviços/instalações realizados para multiplicar os pedidos de orçamento."
         )
     return (
         "O perfil da empresa no Google NÃO mostra site (isso vem do perfil; ela pode ter um que o Google não lista). "
         "Escreva 'não encontrei um site no perfil de vocês no Google', nunca 'vocês não têm site'. "
-        "Use a combinação reputação forte + ausência de site como a "
-        "oportunidade perdida: quem pesquisa no Google fora do Maps não a encontra. Se ela tiver "
-        "Instagram, reconheça ('o Instagram de vocês é ativo') e posicione o site como o complemento "
-        "que captura quem pesquisa - nunca como substituto da rede social."
+        "Use a combinação reputação forte + ausência de site no perfil como oportunidade de ganho: "
+        "destacar o trabalho deles para quem pesquisa no Google fora do Maps e facilitar o pedido de "
+        "orçamento direto no WhatsApp. Se ela tiver Instagram, reconheça ('o Instagram de vocês é ativo') "
+        "e posicione o site como o complemento que captura quem pesquisa no Google."
     )
 
 
@@ -530,7 +541,7 @@ def montar_prompt_contato(nome, categoria, endereco, nota, site_status=None, sit
         f"""
 Conteúdo REAL do site atual da empresa (capturado agora):
 \"\"\"{conteudo_site}\"\"\"
-Se a estrutura pedir uma observação, você pode usar UM detalhe específico desse conteúdo (algo desatualizado, vago ou quebrado), em tom respeitoso, sem humilhar o trabalho existente.
+Você pode usar UM detalhe específico desse conteúdo apenas para personalizar de forma positiva (ex.: citar um serviço ou especialidade real deles), NUNCA para apontar defeito ou criticar o site atual.
 """
         if conteudo_site
         else ""
@@ -902,8 +913,14 @@ def montar_prompt_analise_conversa(lead, mensagens):
         instagram_url=lead.get("instagram_url"),
     )
     contexto_site = _contexto_site(lead.get("site_status"), lead.get("site_problemas"))
-    ultima_do_lead = next(
-        (m["texto"] for m in reversed(mensagens) if m["autor"] == "lead"), None
+    ultimas_do_lead = []
+    for m in reversed(mensagens[-3:]):
+        if m["autor"] == "lead":
+            ultimas_do_lead.append(m["texto"])
+        elif ultimas_do_lead:
+            break
+    ultima_do_lead = " / ".join(reversed(ultimas_do_lead)) if ultimas_do_lead else next(
+        (m["texto"] for m in reversed(mensagens[-MAX_MENSAGENS_NO_PROMPT:]) if m["autor"] == "lead"), None
     )
     foco = (
         f'\nA última mensagem do lead foi: "{ultima_do_lead}"\nSua resposta sugerida precisa endereçar '

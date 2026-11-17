@@ -307,6 +307,35 @@ class TestRespostas:
         assert a["piloto_status"] == "encerrado"
         assert a["status"] == "recusou"
 
+    def test_opt_out_em_multiplas_mensagens_seguidas(self, whatsapp, ia_falsa, monkeypatch):
+        """Lead manda 'Não tenho interesse' seguido de 'Bom dia!': o opt-out olha
+        todas as mensagens seguidas do lead, não só o último balão."""
+        monkeypatch.setattr(ia, "decidir_resposta_piloto", lambda *a, **k: pytest.fail("não deve chamar IA"))
+        preparar_conversa_respondida(whatsapp, "Bom dia!")
+        ts = int((SEGUNDA_10H - timedelta(minutes=5)).timestamp())
+        whatsapp.conversas["5565996757327@s.whatsapp.net"].append(
+            {"key": {"id": "L0", "fromMe": False}, "message": {"conversation": "Não tenho interesse, obrigado!"},
+             "messageTimestamp": ts - 5}
+        )
+        piloto.rodar_uma_vez(SEGUNDA_10H)
+        assert whatsapp.enviados == [("65996757327", piloto.DESPEDIDA_OPT_OUT)]
+        assert lead("a")["piloto_status"] == "encerrado"
+        assert lead("a")["status"] == "recusou"
+
+    def test_mudar_status_para_recusou_ou_ignorado_encerra_piloto(self, cliente, banco):
+        criar_lead("a", status="contatado")
+        criar_lead("b", status="contatado")
+        conexao = db.conectar()
+        try:
+            conexao.execute("UPDATE leads SET piloto_status = 'automatico'")
+            conexao.commit()
+        finally:
+            conexao.close()
+        cliente.post("/api/leads/a/status", json={"status": "recusou"})
+        cliente.post("/api/leads/b/ignorar")
+        assert lead("a")["piloto_status"] == "encerrado"
+        assert lead("b")["piloto_status"] == "encerrado"
+
     def test_preco_passa_para_voce(self, whatsapp, ia_falsa):
         ia_falsa["decisao"] = {"acao": "passar_para_humano", "motivo": "Pediu preço", "resposta": ""}
         preparar_conversa_respondida(whatsapp, "Quanto custa?")
@@ -424,13 +453,31 @@ class TestFollowup:
         finally:
             conexao.close()
 
-    @pytest.mark.parametrize("follow_ups,dias,vence", [(1, 4, False), (1, 5, True), (2, 9, True), (3, 13, False),
-                                                       (3, 14, True), (4, 30, False)])
+    @pytest.mark.parametrize("follow_ups,dias,vence", [(1, 4, False), (1, 5, True), (2, 9, False), (2, 14, False),
+                                                        (3, 14, False), (4, 30, False)])
     def test_cadencia(self, banco, follow_ups, dias, vence):
         contatado_pelo_piloto(dias_atras=dias, follow_ups=follow_ups)
         conexao = db.conectar()
         try:
             assert bool(piloto.leads_para_followup(conexao, SEGUNDA_10H)) is vence
+        finally:
+            conexao.close()
+
+    def test_teto_maximo_de_tres_mensagens_para_quem_nao_respondeu(self, whatsapp, ia_falsa):
+        """Nunca envia mais de 3 mensagens de texto ao todo para quem não respondeu
+        (ex.: 1º contato + recado pro robô + 1º follow-up já dá 3 mensagens)."""
+        contatado_pelo_piloto(dias_atras=5, follow_ups=1)
+        conexao = db.conectar()
+        try:
+            for i in range(2):
+                conexao.execute(
+                    "INSERT INTO mensagens_conversa (canal, lead_ref, autor, texto, enviada_em, origem, chave_dedup, criada_em) "
+                    "VALUES ('maps', 'a', 'vendedor', ?, ?, 'app', ?, ?)",
+                    (f"Msg extra {i}", (SEGUNDA_10H - timedelta(days=3 - i)).isoformat(timespec="seconds"),
+                     f"wa:EX-{i}", SEGUNDA_10H.isoformat()),
+                )
+            conexao.commit()
+            assert piloto.leads_para_followup(conexao, SEGUNDA_10H) == []
         finally:
             conexao.close()
 

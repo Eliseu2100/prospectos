@@ -11,8 +11,8 @@ Proteções (o número do vendedor é o ativo mais caro aqui):
 - preço não informado, fechamento, áudio, irritação ou dúvida -> passa pra você;
 - lead quer ver como ficaria -> o piloto combina a prévia para o próximo dia útil,
   cria a tarefa (follow-up + tag "prévia") e passa a conversa pra você montar o site;
-- lead que não respondeu recebe follow-ups no D2, D5, D9 e D14 depois do primeiro
-  contato (o último é uma despedida) - no mesmo ritmo e limite dos primeiros contatos;
+- lead que não respondeu recebe no máximo 2 follow-ups (D2 e D5 depois do primeiro
+  contato, totalizando no máximo 3 mensagens enviadas; a 3ª já é a despedida leve);
 - quem responde é robô de atendimento -> um recado único pedindo o caminho até o dono.
 
 Estado da conversa em `leads.piloto_status`:
@@ -46,6 +46,8 @@ INTERVALO_LACO_SEGUNDOS = 20
 SITUACOES_SITE_ALVO = ("sem_site", "site_ruim")
 # espera mínima após a mensagem do lead antes de responder (resposta instantânea soa robô)
 ATRASO_MINIMO_RESPOSTA_SEGUNDOS = 45
+# teto absoluto de mensagens de texto enviadas pelo vendedor sem resposta humana do lead
+MAX_MENSAGENS_SEM_RESPOSTA = 3
 
 CONFIG_PADRAO = {
     "piloto_ativo": "0",
@@ -58,22 +60,26 @@ CONFIG_PADRAO = {
     "piloto_fim_de_semana": "0",
     "piloto_intervalo_min": "4",
     "piloto_intervalo_max": "9",
-    "piloto_max_respostas": "4",
+    "piloto_max_respostas": "3",
     "piloto_info_oferta": "",
     "piloto_followup": "1",
     "piloto_recado_robo": "1",
 }
 
-DESPEDIDA_OPT_OUT = "Sem problemas, obrigado pelo retorno! Não vou mais te incomodar. Sucesso aí!"
+DESPEDIDA_OPT_OUT = (
+    "Sem problemas, muito obrigado pela atenção e pelo retorno! "
+    "Não vou mais tomar o seu tempo por aqui. Desejo muito sucesso e ótimos negócios!"
+)
 
 # frases que significam "pare" - tratadas sem IA, na hora, sem risco de insistir
 _FRASES_OPT_OUT = (
     "nao tenho interesse", "nao temos interesse", "sem interesse", "nao quero", "nao precisamos",
     "nao preciso", "pare de", "para de mandar", "parar de mandar", "nao me mande", "nao mande mais",
     "me tira", "me remove", "remover meu", "descadastr", "spam", "nao insista", "bloquear",
-    # recusas educadas vistas nas conversas reais de 28/10
+    # recusas educadas vistas nas conversas reais de 28/10 e 16/11
     "nao obrigad", "nao e viavel", "nao, obrigad", "ja temos site", "ja temos um site",
     "ja estamos com um site", "ja estamos com site", "ja tenho site", "ja tenho um site",
+    "estamos bem atendidos", "ja temos quem cuide", "no momento nao",
 )
 
 _estado = {"proximo_contato_em": None, "ultimo_erro": None, "rodando": False}
@@ -345,7 +351,8 @@ def _data(texto_iso):
 def leads_para_followup(conexao, agora=None):
     """Leads do piloto que nunca responderam (robô não conta) e cujo próximo
     follow-up da cadência já venceu, do mais atrasado pro mais recente. Nunca
-    dois envios no mesmo dia pro mesmo lead."""
+    dois envios no mesmo dia pro mesmo lead, e nunca mais que MAX_MENSAGENS_SEM_RESPOSTA
+    mensagens de texto enviadas pelo vendedor sem resposta."""
     agora = agora or datetime.now()
     marcadores_situacao = ", ".join("?" for _ in SITUACOES_SITE_ALVO)
     linhas = conexao.execute(
@@ -359,10 +366,13 @@ def leads_para_followup(conexao, agora=None):
         WHERE l.piloto_status = 'automatico' AND l.status = 'contatado'
           AND l.site_status IN ({marcadores_situacao})
           AND COALESCE(l.follow_ups_enviados, 0) < ?
+          AND (SELECT COUNT(*) FROM mensagens_conversa
+                WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'vendedor'
+                  AND texto NOT LIKE '[imagem]%') < ?
           AND NOT EXISTS (SELECT 1 FROM mensagens_conversa
                            WHERE canal = 'maps' AND lead_ref = l.place_id AND autor = 'lead' AND automatica = 0)
         """,
-        (*SITUACOES_SITE_ALVO, len(abordagem.CADENCIA_FOLLOWUP_DIAS)),
+        (*SITUACOES_SITE_ALVO, len(abordagem.CADENCIA_FOLLOWUP_DIAS), MAX_MENSAGENS_SEM_RESPOSTA),
     ).fetchall()
 
     vencidos = []
@@ -384,6 +394,7 @@ def fazer_followup(cfg, agora=None):
     None se não havia nenhum vencido (ou se o limite do dia acabou)."""
     from rotas_envio import _enviados_hoje, _limite_diario, enviar_e_registrar
     from rotas_leads import gerar_copy_para_lead
+    import sincronizacao_whatsapp
 
     conexao = db.conectar()
     try:
@@ -393,6 +404,17 @@ def fazer_followup(cfg, agora=None):
         if not vencidos:
             return None
         lead = vencidos[0]
+        try:
+            if sincronizacao_whatsapp.sincronizar_lead(conexao, lead):
+                conexao.commit()
+                atualizado = conexao.execute(
+                    "SELECT status, piloto_status FROM leads WHERE place_id = ?",
+                    (lead["place_id"],),
+                ).fetchone()
+                if not atualizado or atualizado["status"] != "contatado" or atualizado["piloto_status"] != "automatico":
+                    return None
+        except Exception:
+            pass
         ja_enviado = "\n---\n".join(
             m["texto"] for m in _listar_mensagens(conexao, "maps", lead["place_id"]) if m["autor"] == "vendedor")
         try:
@@ -504,7 +526,9 @@ def leads_aguardando_resposta(conexao, agora=None):
             SELECT id FROM mensagens_conversa
             WHERE canal = 'maps' AND lead_ref = l.place_id AND automatica = 0
             ORDER BY enviada_em DESC, id DESC LIMIT 1)
-        WHERE l.piloto_status = 'automatico' AND m.autor = 'lead' AND m.enviada_em <= ?
+        WHERE l.piloto_status = 'automatico'
+          AND l.status NOT IN ('fechou', 'recusou', 'ignorado')
+          AND m.autor = 'lead' AND m.enviada_em <= ?
         """,
         (limite,),
     ).fetchall()
@@ -537,6 +561,18 @@ def combinar_previa(conexao, lead, resposta):
                      f"({data_entrega.strftime('%d/%m')}). Bora montar o site!")
 
 
+def _ultimas_mensagens_do_lead(mensagens):
+    """Junta todas as mensagens seguidas do lead no fim da conversa (clientes
+    costumam quebrar a resposta em 2 ou 3 balões: saudação + recusa + cortesia)."""
+    partes = []
+    for m in reversed(mensagens or []):
+        if m["autor"] == "lead" and not m.get("automatica"):
+            partes.append(m["texto"])
+        elif partes:
+            break
+    return "\n".join(reversed(partes))
+
+
 def responder_lead(lead, cfg):
     """Decide e executa a resposta para um lead. Retorna a ação tomada."""
     from rotas_envio import enviar_e_registrar
@@ -544,9 +580,9 @@ def responder_lead(lead, cfg):
     conexao = db.conectar()
     try:
         mensagens = _listar_mensagens(conexao, "maps", lead["place_id"])
-        ultima = mensagens[-1]["texto"] if mensagens else ""
+        bloco_recente_lead = _ultimas_mensagens_do_lead(mensagens)
 
-        if e_opt_out(ultima):
+        if e_opt_out(bloco_recente_lead):
             decisao = {"acao": "encerrar", "motivo": "O lead pediu para parar.",
                        "resposta": DESPEDIDA_OPT_OUT}
         elif (lead.get("piloto_respostas") or 0) >= _int(cfg, "piloto_max_respostas"):

@@ -165,6 +165,7 @@ def sincronizar_lead(conexao, lead):
     ultima_do_lead = None  # (enviada_em, texto) da mensagem nova mais recente do lead
     vistos = set()
 
+    jids_consultados = jids_do_lead(lead)
     jid_lid_descoberto = None
     registros = []
     for jid, campo in consultas_do_lead(lead):
@@ -176,6 +177,18 @@ def sincronizar_lead(conexao, lead):
             vistos.add(id_msg)
             if str(chave.get("remoteJid", "")).endswith("@lid"):
                 jid_lid_descoberto = chave["remoteJid"]
+            registros.append(registro)
+
+    # se aprendeu um @lid novo via remoteJidAlt, consulta também por remoteJid
+    # na mesma volta: mensagens enviadas pelo celular (fromMe=True) em conversa
+    # @lid não trazem remoteJidAlt e só aparecem na busca direta pelo @lid
+    if jid_lid_descoberto and jid_lid_descoberto not in jids_consultados:
+        for registro in mensageiros.buscar_mensagens(jid_lid_descoberto, MENSAGENS_POR_CONVERSA, campo="remoteJid"):
+            chave = registro.get("key") or {}
+            id_msg = chave.get("id")
+            if not id_msg or id_msg in vistos:
+                continue
+            vistos.add(id_msg)
             registros.append(registro)
 
     # ordem cronológica: pra saber quanto tempo cada resposta levou desde a

@@ -41,6 +41,7 @@ LINHAS_POR_COMMIT = 20
 DOMINIOS_IGNORADOS = {
     "facebook.com", "instagram.com", "linkedin.com", "twitter.com", "x.com",
     "youtube.com", "tiktok.com",
+    "wa.me", "api.whatsapp.com", "whatsapp.com",
     "olx.com.br", "vivareal.com.br", "zapimoveis.com.br", "imovelweb.com.br",
     "chavesnamao.com.br", "quintoandar.com.br", "nestoria.com.br",
     "empresas.serasaexperian.com.br", "econodata.com.br", "cnpj.biz",
@@ -772,6 +773,10 @@ def migrar_banco(conexao):
             criada_em TEXT NOT NULL
         )
         """
+    )
+    conexao.execute(
+        "UPDATE leads SET piloto_status = 'encerrado' "
+        "WHERE status IN ('fechou', 'recusou', 'ignorado') AND piloto_status = 'automatico'"
     )
     conexao.commit()
 

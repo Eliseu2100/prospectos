@@ -36,51 +36,62 @@ REGRAS_PRIMEIRO_CONTATO = """Método do primeiro contato (vale acima de qualquer
 - A primeira mensagem NÃO vende: ela só abre a conversa. Nada de listar serviços, falar de prévia, preço ou marcar horário. Só uma coisa de apresentação é obrigatória: dizer em meia frase quem você é e o que faz (ex.: "aqui é o Eliseu, crio sites para negócios locais"). Quem recebe mensagem de desconhecido precisa saber com quem fala antes de responder.
 - Cabe numa tela de celular sem rolar: 2 ou 3 frases curtas, idealmente menos de 280 caracteres.
 - Termina com UMA pergunta só, que o dono consegue responder de cabeça. Mensagem que pede duas coisas não recebe resposta.
-- Fale do negócio DELE (clientes, agenda, pedidos), nunca da sua ferramenta ou de como você trabalha.
-- Personalize com um fato REAL e verificável dos dados fornecidos (a nota, o número de avaliações, o site fora do ar, não ter site). Elogio genérico ("adorei o perfil") denuncia disparo em massa.
+- Fale do negócio DELE (clientes, agenda, pedidos, orçamentos), nunca da sua ferramenta ou de como você trabalha.
+- Troque "apontar defeito" por "oportunidade de ganho": NUNCA diga que o site dele "não abre direito no celular", "está difícil de usar", "está lento", "falta telefone/endereço/descrição" ou "está desatualizado". O dono leva para o lado pessoal e fica na defensiva. Use fatos positivos reais (nota alta, número de avaliações, presença na cidade) e foque em multiplicar pedidos de orçamento.
+- Personalize com um fato REAL e verificável dos dados fornecidos (a nota, o número de avaliações, a cidade). Elogio genérico ("adorei o perfil") denuncia disparo em massa.
 - Zero emoji, zero travessão (— ou –), zero lista. Escreva como alguém falaria com um conhecido; se soaria robô lido em voz alta, reescreva."""
 
 # Estruturas de abertura. A escolha é feita em Python (variedade e coerência
 # com os dados do lead); o modelo só escreve dentro da estrutura sorteada.
 ESTRUTURAS_ABERTURA = {
     "observacao": (
-        "Observação cuidadosa: só use esta abertura se o problema informado for algo que o dono "
-        "confirma em 5 segundos abrindo o link (ex.: o endereço do perfil dá erro ao abrir). Diga o "
-        "fato em tom de aviso útil, sem julgar o trabalho dele e sem concluir nada sobre vendas, e "
-        "pergunte se ele já sabia. Se o problema for lentidão, 'não seguro', celular ou qualquer "
-        "coisa que depende de aparelho ou navegador, NÃO use: troque por uma pergunta sobre como o "
-        "cliente novo chega hoje. Falha apontada que o dono desmente na hora queima a conversa."
+        "Aviso gentil de link quebrado: só use esta abertura quando o endereço do site no perfil do "
+        "Google realmente não abre (site fora do ar, domínio expirado ou erro HTTP). Diga em tom de "
+        "toque amigo que tentou abrir o link do perfil e deu erro, sem criticar a empresa, e pergunte "
+        "se eles já sabiam ou se estão mudando de endereço. Nunca use para falar de celular, lentidão "
+        "ou layout."
     ),
     "elogio_e_lacuna": (
-        "Elogio verdadeiro + lacuna: reconheça algo específico e real (a nota alta com muitas "
-        "avaliações), mostre a lacuna (quem pesquisa no Google fora do Maps não encontra um site "
-        "deles) e pergunte, sem acusar, se é falta de tempo ou se ainda não tinham pensado nisso."
+        "Elogio verdadeiro + oportunidade de ganho: reconheça o resultado real deles no Google (a nota "
+        "alta com boas avaliações) e mostre a oportunidade de aproveitar essa reputação numa página "
+        "própria que destaque os trabalhos/instalações já feitos para transformar quem pesquisa na "
+        "cidade em pedido de orçamento no WhatsApp. Termine perguntando se hoje os novos clientes "
+        "chegam mais por indicação ou pela busca no Google."
     ),
     "como_chega_cliente": (
-        "Pergunta de diagnóstico: pergunte, de forma direta e curiosa, se hoje o cliente novo chega "
-        "mais por indicação ou pela internet. Pode citar um fato real deles numa frase antes."
+        "Pergunta de diagnóstico positiva: cite um dado real da empresa (a nota ou as avaliações no "
+        "Google, ou a atuação na cidade) e pergunte, de forma direta e curiosa, se hoje os clientes "
+        "novos chegam mais por indicação ou por quem pesquisa na internet."
     ),
     "teste_do_google": (
-        "Teste do Google: pergunte se, quando alguém da cidade procura pelo tipo de serviço deles no "
-        "Google, encontra eles fácil ou acha o concorrente primeiro. Sem aula de internet."
+        "Oportunidade na busca local: comente de forma leve sobre quem procura o serviço deles na "
+        "cidade pelo Google e pergunte se hoje essas pessoas já chegam direto no WhatsApp deles "
+        "pedindo orçamento ou se o forte ainda é a indicação. Sem aula de internet e sem criticar."
     ),
 }
 
 NOTA_ELOGIAVEL = 4.5
 AVALIACOES_ELOGIAVEIS = 30
+_PROBLEMAS_LINK_QUEBRADO = ("fora do ar", "domínio não encontrado", "erro (http")
+
+
+def _site_nao_abre(site_problemas):
+    texto = (site_problemas or "").lower()
+    return any(marcador in texto for marcador in _PROBLEMAS_LINK_QUEBRADO)
 
 
 def escolher_estrutura_abertura(site_status, site_problemas, nota, num_avaliacoes):
     """Escolhe a estrutura da primeira mensagem a partir do que dá pra afirmar
     com verdade sobre o lead. Retorna a chave de ESTRUTURAS_ABERTURA."""
     opcoes = ["como_chega_cliente", "teste_do_google"]
-    if site_status == "site_ruim" and site_problemas:
-        opcoes += ["observacao", "observacao"]  # problema concreto é a melhor abertura
+    link_quebrado = site_status == "site_ruim" and _site_nao_abre(site_problemas)
+    if link_quebrado:
+        opcoes += ["observacao", "observacao"]  # link literalmente fora do ar é um aviso útil
     try:
         reputacao_forte = float(nota or 0) >= NOTA_ELOGIAVEL and int(num_avaliacoes or 0) >= AVALIACOES_ELOGIAVEIS
     except (TypeError, ValueError):
         reputacao_forte = False
-    if reputacao_forte and site_status != "site_ruim":
+    if reputacao_forte and not link_quebrado:
         opcoes.append("elogio_e_lacuna")
     return random.choice(opcoes)
 
@@ -89,42 +100,34 @@ def escolher_estrutura_abertura(site_status, site_problemas, nota, num_avaliacoe
 # Follow-up de quem não respondeu
 # ---------------------------------------------------------------------------
 
-# dias depois do primeiro contato em que sai cada follow-up (1º, 2º, 3º, 4º).
-# O 4º é a despedida: depois dele o piloto não manda mais nada.
-CADENCIA_FOLLOWUP_DIAS = [2, 5, 9, 14]
+# Limite máximo de 3 mensagens por lead (1º contato no D0 + 1º follow-up no D2
+# + 2º e último follow-up no D5). O 2º follow-up já é a despedida leve: depois
+# dele o piloto não envia mais nada para não soar invasivo ou insistente.
+CADENCIA_FOLLOWUP_DIAS = [2, 5]
 
 ANGULOS_FOLLOWUP = {
     1: (
-        "Novo motivo para responder (o link do site de exemplo é anexado depois, por Python): em uma "
-        "frase, diga o que o exemplo mostra de útil para o negócio DELE (ex.: as instalações já feitas "
-        "num lugar só, o pedido de orçamento a um toque) e termine com uma pergunta concreta que se "
-        "responde em uma palavra (ex.: 'Posso montar um parecido com as fotos de vocês?'). Proibido: "
-        "'subir a conversa', 'não se perder na correria', 'é só me avisar que não insisto' e qualquer "
-        "variação, porque virou assinatura de disparo em massa e convida o 'não'. Sem culpa, sem 'vi que "
-        "você visualizou'."
+        "Oportunidade de ganho com exemplo visual (o link do site de exemplo é anexado depois, por "
+        "Python): sem apontar nenhum defeito no site deles, mostre em uma frase como uma página "
+        "focada em destacar os projetos/serviços realizados e o pedido de orçamento a um toque ajuda "
+        "a converter quem pesquisa na cidade. Termine com uma pergunta leve e sem pressão (ex.: "
+        "'Posso montar uma ideia visual parecida para vocês avaliarem sem compromisso?'). Proibido: "
+        "'subir a conversa', 'não se perder na correria', 'é só me avisar que não insisto', 'olhei o "
+        "site de novo' ou criticar o site atual."
     ),
     2: (
-        "Novo ângulo: troque a pergunta original por um problema típico desse tipo de negócio "
-        "(use a dor do nicho, se informada, na língua do dono, sem estatística inventada), diga que "
-        "olhou o deles de novo e acha que dá pra resolver rápido, e pergunte se ele quer que você "
-        "diga o que viu."
-    ),
-    3: (
-        "Resumo em uma linha: imagine que ele não leu nada antes. Em uma frase, diga o que você "
-        "notou de concreto no negócio dele (dados reais) e o que isso custa em cliente; feche dizendo "
-        "que, se quiser ver, você está por aqui. Sem cobrar resposta."
-    ),
-    4: (
-        "Despedida digna: avise com leveza que é a sua última mensagem, que entendeu que agora não é "
-        "o momento, que não vai mais escrever para não incomodar e que o contato fica aqui se um dia "
-        "fizer sentido. Deseje sucesso. Nenhuma pergunta e nenhuma oferta."
+        "Despedida digna e leve (3ª e última mensagem do contato): avise com educação que é a sua "
+        "última mensagem para não tomar o tempo deles na correria, que entendeu que agora não é o "
+        "momento e que deixa o contato à disposição caso precisem fortalecer a presença digital no "
+        "futuro. Deseje sucesso e ótimos negócios. Nenhuma pergunta, nenhuma cobrança e nenhuma "
+        "crítica ao site."
     ),
 }
 
 
 def angulo_followup(numero):
-    """Orientação do follow-up número `numero` (1 em diante). Do 4º em diante
-    é sempre a despedida."""
+    """Orientação do follow-up número `numero` (1 em diante). Do 2º em diante
+    é sempre a despedida (máximo de 3 mensagens no total)."""
     return ANGULOS_FOLLOWUP[min(max(int(numero), 1), max(ANGULOS_FOLLOWUP))]
 
 
@@ -142,7 +145,7 @@ GUIA_OBJECOES = """Como responder às objeções mais comuns (curto, sem textão
 - "Vivo de indicação": concorde; o site entra depois da indicação, porque quem recebe o nome costuma pesquisar antes de ligar. Pergunte se hoje essa pessoa encontra o trabalho deles.
 - "Vou pensar": aceite e pergunte com sinceridade se ficou alguma dúvida que você possa esclarecer ou se é o momento que não é bom.
 - "Me chama depois" / "mês que vem": aceite sem insistir e pergunte o que muda até lá, para você voltar com algo útil. Quando ele disser QUANDO retomar, passe para o humano com o motivo "retomar em <quando>".
-- "Já temos site" / "o site está no ar" / "nosso site ranqueia bem": nunca defenda a observação feita antes nem rebata com dado técnico (SEO, velocidade, nota de ferramenta). Reconheça que errou na leitura em uma frase, sem pedir desculpa longa, e faça UMA pergunta de curiosidade sobre o resultado dele (de onde vêm os pedidos de orçamento hoje, o que ele gostaria que o site fizesse a mais). Se ele disser que está satisfeito, encerre com educação.
+- "Já temos site" / "o site está no ar" / "nosso site já tem isso" / "nosso site ranqueia bem": nunca defenda a observação feita antes nem rebata com dado técnico (SEO, velocidade, nota de ferramenta). Assuma com leveza que foi uma falha na sua análise anterior, valide o resultado positivo deles (como a nota alta no Google) e faça UMA pergunta de curiosidade sobre de onde vêm os pedidos de orçamento hoje. Se ele estiver na defensiva ou disser que já está satisfeito, encerre com educação desejando ótimos negócios.
 - "Recebo isso o tempo todo" / "todo dia aparece alguém vendendo site": concorde sem se defender, diga em uma frase o que é diferente (você fala direto com quem cria, sem agência no meio, e o primeiro passo é só ver um exemplo, sem compromisso) e, se ele não mostrar abertura, encerre agradecendo a franqueza. Nunca insista depois de uma queixa de excesso de abordagem.
 - "Você trabalha para agência ou por conta própria?": responda a verdade em uma frase (por conta própria, falando direto com o dono) e devolva uma pergunta curta. Passe para o humano se ele quiser parceria ou revenda.
 - "Já fechamos com outra empresa" / "já estamos criando o site": parabenize em uma frase, não compare nem critique, peça para guardar o contato caso o projeto não saia como esperado e encerre.
